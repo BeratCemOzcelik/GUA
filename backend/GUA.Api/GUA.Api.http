@@ -1,0 +1,6 @@
+@GUA.Api_HostAddress = http://localhost:5008
+
+GET {{GUA.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
