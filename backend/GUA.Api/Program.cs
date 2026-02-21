@@ -22,6 +22,11 @@ builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IFileStorageService>(provider =>
+{
+    var env = provider.GetRequiredService<IWebHostEnvironment>();
+    return new FileStorageService(env.WebRootPath);
+});
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
@@ -129,6 +134,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Serve static files from wwwroot/uploads
+app.UseStaticFiles();
 
 app.UseCors("AllowFrontend");
 

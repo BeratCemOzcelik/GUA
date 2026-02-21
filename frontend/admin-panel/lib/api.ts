@@ -237,3 +237,75 @@ export const usersApi = {
     return response.data
   },
 }
+
+// Course Materials API
+export const courseMaterialsApi = {
+  getAll: async () => {
+    const response = await api.get('/course-materials')
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/course-materials/${id}`)
+    return response.data
+  },
+  create: async (data: any) => {
+    const response = await api.post('/course-materials', data)
+    return response.data
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/course-materials/${id}`, data)
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/course-materials/${id}`)
+    return response.data
+  },
+}
+
+// Files API
+export const filesApi = {
+  upload: async (file: File, folder: string = 'general') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('folder', folder)
+
+    const response = await api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+  delete: async (fileUrl: string) => {
+    const response = await api.delete('/files', { params: { fileUrl } })
+    return response.data
+  },
+  getConfig: async () => {
+    const response = await api.get('/files/config')
+    return response.data
+  },
+}
+
+// Faculty Profiles API
+export const facultyApi = {
+  getAll: async () => {
+    const response = await api.get('/facultyprofiles')
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/facultyprofiles/${id}`)
+    return response.data
+  },
+  create: async (data: any) => {
+    const response = await api.post('/facultyprofiles', data)
+    return response.data
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/facultyprofiles/${id}`, data)
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/facultyprofiles/${id}`)
+    return response.data
+  },
+}
