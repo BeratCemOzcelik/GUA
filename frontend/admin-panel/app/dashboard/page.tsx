@@ -1,0 +1,181 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import StatCard from '@/components/ui/StatCard'
+import {
+  departmentsApi,
+  programsApi,
+  coursesApi,
+  usersApi,
+} from '@/lib/api'
+
+interface DashboardStats {
+  departments: number
+  programs: number
+  courses: number
+  users: number
+}
+
+export default function DashboardPage() {
+  const { user } = useAuth()
+  const [stats, setStats] = useState<DashboardStats>({
+    departments: 0,
+    programs: 0,
+    courses: 0,
+    users: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch all counts in parallel
+        const [departmentsRes, programsRes, coursesRes, usersRes] =
+          await Promise.all([
+            departmentsApi.getAll(),
+            programsApi.getAll(),
+            coursesApi.getAll(),
+            usersApi.getAll(),
+          ])
+
+        setStats({
+          departments: departmentsRes.data?.length || 0,
+          programs: programsRes.data?.length || 0,
+          courses: coursesRes.data?.length || 0,
+          users: usersRes.data?.length || 0,
+        })
+      } catch (err: any) {
+        console.error('Failed to fetch dashboard stats:', err)
+        setError(err.message || 'Failed to load dashboard statistics')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchStats()
+    }
+  }, [user])
+
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good Morning'
+    if (hour < 18) return 'Good Afternoon'
+    return 'Good Evening'
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-[#8B1A1A] to-[#660000] rounded-lg shadow-lg p-8 text-white">
+        <h1 className="text-3xl font-bold mb-2">
+          {getGreeting()}, {user?.firstName}!
+        </h1>
+        <p className="text-white/90">
+          Welcome to the GUA Admin Panel. Here&apos;s an overview of your system.
+        </p>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
+          <div className="flex items-center">
+            <span className="text-xl mr-2">⚠️</span>
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Departments"
+          value={stats.departments}
+          icon="🏢"
+          color="#8B1A1A"
+          loading={loading}
+        />
+        <StatCard
+          title="Total Programs"
+          value={stats.programs}
+          icon="🎓"
+          color="#2563EB"
+          loading={loading}
+        />
+        <StatCard
+          title="Total Courses"
+          value={stats.courses}
+          icon="📚"
+          color="#059669"
+          loading={loading}
+        />
+        <StatCard
+          title="Total Users"
+          value={stats.users}
+          icon="👥"
+          color="#DC2626"
+          loading={loading}
+        />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <a
+            href="/departments"
+            className="flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+          >
+            <span className="text-2xl">➕</span>
+            <span className="font-medium text-gray-900">Add Department</span>
+          </a>
+          <a
+            href="/programs"
+            className="flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+          >
+            <span className="text-2xl">➕</span>
+            <span className="font-medium text-gray-900">Add Program</span>
+          </a>
+          <a
+            href="/courses"
+            className="flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+          >
+            <span className="text-2xl">➕</span>
+            <span className="font-medium text-gray-900">Add Course</span>
+          </a>
+          <a
+            href="/blog"
+            className="flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+          >
+            <span className="text-2xl">✍️</span>
+            <span className="font-medium text-gray-900">Create Blog Post</span>
+          </a>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
+        <div className="space-y-3">
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+            <span className="text-xl">📊</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Dashboard statistics loaded
+              </p>
+              <p className="text-xs text-gray-500">Just now</p>
+            </div>
+          </div>
+          <div className="text-center py-8 text-gray-500 text-sm">
+            No recent activity to display
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
