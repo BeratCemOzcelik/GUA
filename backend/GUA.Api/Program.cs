@@ -1,4 +1,5 @@
 using System.Text;
+using GUA.Api.Middleware;
 using GUA.Core.Interfaces;
 using GUA.Infrastructure.Data;
 using GUA.Infrastructure.Repositories;
@@ -133,6 +134,9 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Add Audit Logging Middleware
+app.UseAuditLogging();
 
 app.MapControllers();
 
