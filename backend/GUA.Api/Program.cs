@@ -1,6 +1,7 @@
 using System.Text;
 using GUA.Core.Interfaces;
 using GUA.Infrastructure.Data;
+using GUA.Infrastructure.Repositories;
 using GUA.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,9 @@ builder.Services.AddControllers();
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Repositories
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
