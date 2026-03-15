@@ -20,6 +20,8 @@ const programSchema = z.object({
   totalCreditsRequired: z.number().min(1, 'Credits required must be at least 1'),
   durationYears: z.number().min(1, 'Duration must be at least 1 year').max(10, 'Duration must be at most 10 years'),
   description: z.string().optional(),
+  requirements: z.string().optional(),
+  tuitionFee: z.number().optional(),
   isActive: z.boolean().default(true),
 })
 
@@ -146,6 +148,23 @@ export default function CreateProgramPage() {
             rows={4}
             error={errors.description?.message}
             {...register('description')}
+          />
+
+          <Textarea
+            label="Requirements"
+            placeholder="Admission requirements, prerequisites, etc..."
+            rows={3}
+            error={errors.requirements?.message}
+            {...register('requirements')}
+          />
+
+          <Input
+            label="Tuition Fee (Optional)"
+            type="number"
+            step="0.01"
+            placeholder="e.g., 15000.00"
+            error={errors.tuitionFee?.message}
+            {...register('tuitionFee', { valueAsNumber: true })}
           />
 
           <div className="flex items-center">

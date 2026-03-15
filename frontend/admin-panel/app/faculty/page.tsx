@@ -143,7 +143,7 @@ export default function FacultyPage() {
                       <div className="flex-shrink-0">
                         <img
                           className="h-10 w-10 rounded-full object-cover border-2 border-[#8B1A1A]"
-                          src={prof.photoUrl || '/images/avatar-placeholder.png'}
+                          src={prof.photoUrl ? (prof.photoUrl.startsWith('http') ? prof.photoUrl : `http://localhost:5000${prof.photoUrl}`) : '/images/avatar-placeholder.png'}
                           alt={`${prof.firstName} ${prof.lastName}`}
                         />
                       </div>

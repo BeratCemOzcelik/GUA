@@ -9,12 +9,13 @@ import { blogApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
+import FileUpload from '@/components/ui/FileUpload'
 
 const blogSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   slug: z.string().min(2, 'Slug must be at least 2 characters').regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   content: z.string().min(10, 'Content must be at least 10 characters'),
-  featuredImageUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  featuredImageUrl: z.string().optional().or(z.literal('')),
   isPublished: z.boolean().default(false),
 })
 
@@ -108,13 +109,29 @@ export default function CreateBlogPage() {
             </Button>
           </div>
 
-          <Input
-            label="Featured Image URL"
-            type="url"
-            placeholder="https://example.com/image.jpg"
-            error={errors.featuredImageUrl?.message}
-            {...register('featuredImageUrl')}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Featured Image
+            </label>
+            <FileUpload
+              folder="blog"
+              accept="image/*"
+              preview={true}
+              onUploadSuccess={(fileUrl) => setValue('featuredImageUrl', fileUrl)}
+            />
+            {errors.featuredImageUrl && (
+              <p className="mt-1 text-sm text-red-600">{errors.featuredImageUrl.message}</p>
+            )}
+            {watch('featuredImageUrl') && (
+              <div className="mt-2">
+                <img
+                  src={watch('featuredImageUrl')?.startsWith('http') ? watch('featuredImageUrl') : `http://localhost:5000${watch('featuredImageUrl')}`}
+                  alt="Featured"
+                  className="max-w-xs rounded-lg border border-gray-200"
+                />
+              </div>
+            )}
+          </div>
 
           <Textarea
             label="Content"

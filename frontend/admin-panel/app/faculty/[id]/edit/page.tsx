@@ -203,7 +203,7 @@ export default function EditFacultyPage() {
                 </label>
                 <div className="flex items-center space-x-4">
                   <img
-                    src={currentPhotoUrl}
+                    src={currentPhotoUrl.startsWith('http') ? currentPhotoUrl : `http://localhost:5000${currentPhotoUrl}`}
                     alt="Current faculty photo"
                     className="h-32 w-32 rounded-lg object-cover border-2 border-gray-200"
                   />

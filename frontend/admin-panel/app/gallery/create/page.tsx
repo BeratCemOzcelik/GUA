@@ -9,10 +9,11 @@ import { galleryApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
+import FileUpload from '@/components/ui/FileUpload'
 
 const gallerySchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
-  imageUrl: z.string().url('Must be a valid URL'),
+  imageUrl: z.string().min(1, 'Image is required'),
   description: z.string().optional(),
   category: z.string().optional(),
   displayOrder: z.number().min(0, 'Display order must be at least 0').default(0),
@@ -29,6 +30,8 @@ export default function CreateGalleryPage() {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
+    watch,
   } = useForm<GalleryFormData>({
     resolver: zodResolver(gallerySchema),
     defaultValues: {
@@ -79,14 +82,29 @@ export default function CreateGalleryPage() {
             {...register('title')}
           />
 
-          <Input
-            label="Image URL"
-            type="url"
-            placeholder="https://example.com/image.jpg"
-            required
-            error={errors.imageUrl?.message}
-            {...register('imageUrl')}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Image <span className="text-red-500">*</span>
+            </label>
+            <FileUpload
+              folder="gallery"
+              accept="image/*"
+              preview={true}
+              onUploadSuccess={(fileUrl) => setValue('imageUrl', fileUrl)}
+            />
+            {errors.imageUrl && (
+              <p className="mt-1 text-sm text-red-600">{errors.imageUrl.message}</p>
+            )}
+            {watch('imageUrl') && (
+              <div className="mt-2">
+                <img
+                  src={watch('imageUrl')}
+                  alt={watch('title') || 'Gallery image'}
+                  className="max-w-xs rounded-lg border border-gray-200"
+                />
+              </div>
+            )}
+          </div>
 
           <Textarea
             label="Description"

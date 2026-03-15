@@ -78,6 +78,87 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<UserManagementDto>>> CreateUser(
+        [FromBody] CreateUserRequest request)
+    {
+        try
+        {
+            // Validate email doesn't exist
+            var existingUser = await _userRepository.FindAsync(u => u.Email == request.Email);
+            if (existingUser.Any())
+            {
+                return BadRequest(ApiResponse<UserManagementDto>.FailureResult(
+                    "Email already exists"));
+            }
+
+            // Validate password
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            {
+                return BadRequest(ApiResponse<UserManagementDto>.FailureResult(
+                    "Password must be at least 6 characters long"));
+            }
+
+            // Create user
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = request.Email,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                PhoneNumber = request.PhoneNumber,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                IsActive = request.IsActive,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var createdUser = await _userRepository.AddAsync(user);
+
+            // Assign roles
+            var roles = new List<string>();
+            if (request.RoleNames != null && request.RoleNames.Any())
+            {
+                foreach (var roleName in request.RoleNames)
+                {
+                    var role = (await _roleRepository.FindAsync(r => r.Name == roleName)).FirstOrDefault();
+                    if (role != null)
+                    {
+                        var userRole = new UserRole
+                        {
+                            UserId = createdUser.Id,
+                            RoleId = role.Id
+                        };
+                        await _userRoleRepository.AddAsync(userRole);
+                        roles.Add(role.Name);
+                    }
+                }
+            }
+
+            var userDto = new UserManagementDto
+            {
+                Id = createdUser.Id,
+                Email = createdUser.Email,
+                FirstName = createdUser.FirstName,
+                LastName = createdUser.LastName,
+                PhoneNumber = createdUser.PhoneNumber,
+                IsActive = createdUser.IsActive,
+                Roles = roles,
+                CreatedAt = createdUser.CreatedAt,
+                UpdatedAt = createdUser.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetUserById), new { id = createdUser.Id },
+                ApiResponse<UserManagementDto>.SuccessResult(userDto, "User created successfully"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating user");
+            return StatusCode(500, ApiResponse<UserManagementDto>.FailureResult(
+                "An error occurred while creating the user"));
+        }
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<UserManagementDto>>> GetUserById(Guid id)
     {

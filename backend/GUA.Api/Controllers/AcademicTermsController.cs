@@ -87,6 +87,46 @@ public class AcademicTermsController : ControllerBase
         }
     }
 
+    [HttpGet("current")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AcademicTermDto>>> GetCurrent()
+    {
+        try
+        {
+            var terms = await _repository.GetAllAsync();
+            var activeTerm = terms
+                .Where(t => t.IsActive)
+                .OrderByDescending(t => t.StartDate)
+                .FirstOrDefault();
+
+            if (activeTerm == null)
+            {
+                return NotFound(ApiResponse<AcademicTermDto>.FailureResult("No active academic term found"));
+            }
+
+            var dto = new AcademicTermDto
+            {
+                Id = activeTerm.Id,
+                Name = activeTerm.Name,
+                Code = activeTerm.Code,
+                StartDate = activeTerm.StartDate,
+                EndDate = activeTerm.EndDate,
+                EnrollmentStartDate = activeTerm.EnrollmentStartDate,
+                EnrollmentEndDate = activeTerm.EnrollmentEndDate,
+                IsActive = activeTerm.IsActive,
+                CreatedAt = activeTerm.CreatedAt
+            };
+
+            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(dto));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving current academic term");
+            return StatusCode(500, ApiResponse<AcademicTermDto>.FailureResult(
+                "An error occurred while retrieving the current academic term"));
+        }
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse<AcademicTermDto>>> Create([FromBody] CreateAcademicTermRequest request)
@@ -112,10 +152,11 @@ public class AcademicTermsController : ControllerBase
                     "Enrollment start date must be before enrollment end date"));
             }
 
-            if (request.EnrollmentStartDate < request.StartDate || request.EnrollmentEndDate > request.EndDate)
+            // Enrollment end date must not exceed term end date
+            if (request.EnrollmentEndDate > request.EndDate)
             {
                 return BadRequest(ApiResponse<AcademicTermDto>.FailureResult(
-                    "Enrollment dates must be within the term dates"));
+                    "Enrollment end date cannot be after the term end date"));
             }
 
             // Check if code already exists
@@ -129,11 +170,11 @@ public class AcademicTermsController : ControllerBase
             {
                 Name = request.Name,
                 Code = request.Code,
-                StartDate = request.StartDate,
-                EndDate = request.EndDate,
+                StartDate = DateTime.SpecifyKind(request.StartDate, DateTimeKind.Utc),
+                EndDate = DateTime.SpecifyKind(request.EndDate, DateTimeKind.Utc),
                 IsActive = false,
-                EnrollmentStartDate = request.EnrollmentStartDate,
-                EnrollmentEndDate = request.EnrollmentEndDate,
+                EnrollmentStartDate = DateTime.SpecifyKind(request.EnrollmentStartDate, DateTimeKind.Utc),
+                EnrollmentEndDate = DateTime.SpecifyKind(request.EnrollmentEndDate, DateTimeKind.Utc),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -158,8 +199,11 @@ public class AcademicTermsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating academic term");
+            var errorMessage = ex.InnerException != null
+                ? $"{ex.Message} | Inner: {ex.InnerException.Message}"
+                : ex.Message;
             return StatusCode(500, ApiResponse<AcademicTermDto>.FailureResult(
-                "An error occurred while creating the academic term"));
+                $"An error occurred while creating the academic term: {errorMessage}"));
         }
     }
 
@@ -195,10 +239,11 @@ public class AcademicTermsController : ControllerBase
                     "Enrollment start date must be before enrollment end date"));
             }
 
-            if (request.EnrollmentStartDate < request.StartDate || request.EnrollmentEndDate > request.EndDate)
+            // Enrollment end date must not exceed term end date
+            if (request.EnrollmentEndDate > request.EndDate)
             {
                 return BadRequest(ApiResponse<AcademicTermDto>.FailureResult(
-                    "Enrollment dates must be within the term dates"));
+                    "Enrollment end date cannot be after the term end date"));
             }
 
             // Check if code already exists for another academic term
@@ -210,11 +255,11 @@ public class AcademicTermsController : ControllerBase
 
             academicTerm.Name = request.Name;
             academicTerm.Code = request.Code;
-            academicTerm.StartDate = request.StartDate;
-            academicTerm.EndDate = request.EndDate;
+            academicTerm.StartDate = DateTime.SpecifyKind(request.StartDate, DateTimeKind.Utc);
+            academicTerm.EndDate = DateTime.SpecifyKind(request.EndDate, DateTimeKind.Utc);
             academicTerm.IsActive = request.IsActive;
-            academicTerm.EnrollmentStartDate = request.EnrollmentStartDate;
-            academicTerm.EnrollmentEndDate = request.EnrollmentEndDate;
+            academicTerm.EnrollmentStartDate = DateTime.SpecifyKind(request.EnrollmentStartDate, DateTimeKind.Utc);
+            academicTerm.EnrollmentEndDate = DateTime.SpecifyKind(request.EnrollmentEndDate, DateTimeKind.Utc);
             academicTerm.UpdatedAt = DateTime.UtcNow;
 
             await _repository.UpdateAsync(academicTerm);

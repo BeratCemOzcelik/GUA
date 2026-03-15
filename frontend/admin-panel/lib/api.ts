@@ -220,6 +220,10 @@ export const usersApi = {
     const response = await api.get(`/users/${id}`)
     return response.data
   },
+  create: async (data: any) => {
+    const response = await api.post('/users', data)
+    return response.data
+  },
   update: async (id: string, data: any) => {
     const response = await api.put(`/users/${id}`, data)
     return response.data
@@ -241,23 +245,23 @@ export const usersApi = {
 // Course Materials API
 export const courseMaterialsApi = {
   getAll: async () => {
-    const response = await api.get('/course-materials')
+    const response = await api.get('/coursematerials')
     return response.data
   },
   getById: async (id: number) => {
-    const response = await api.get(`/course-materials/${id}`)
+    const response = await api.get(`/coursematerials/${id}`)
     return response.data
   },
   create: async (data: any) => {
-    const response = await api.post('/course-materials', data)
+    const response = await api.post('/coursematerials', data)
     return response.data
   },
   update: async (id: number, data: any) => {
-    const response = await api.put(`/course-materials/${id}`, data)
+    const response = await api.put(`/coursematerials/${id}`, data)
     return response.data
   },
   delete: async (id: number) => {
-    const response = await api.delete(`/course-materials/${id}`)
+    const response = await api.delete(`/coursematerials/${id}`)
     return response.data
   },
 }
@@ -306,6 +310,169 @@ export const facultyApi = {
   },
   delete: async (id: number) => {
     const response = await api.delete(`/facultyprofiles/${id}`)
+    return response.data
+  },
+}
+
+// Academic Terms API
+export const academicTermsApi = {
+  getAll: async () => {
+    const response = await api.get('/academicterms')
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/academicterms/${id}`)
+    return response.data
+  },
+  create: async (data: any) => {
+    const response = await api.post('/academicterms', data)
+    return response.data
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/academicterms/${id}`, data)
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/academicterms/${id}`)
+    return response.data
+  },
+}
+
+// Course Offerings API
+export const courseOfferingsApi = {
+  getAll: async (termId?: number, courseId?: number) => {
+    const params = new URLSearchParams()
+    if (termId) params.append('termId', termId.toString())
+    if (courseId) params.append('courseId', courseId.toString())
+    const response = await api.get(`/courseofferings${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/courseofferings/${id}`)
+    return response.data
+  },
+  create: async (data: any) => {
+    const response = await api.post('/courseofferings', data)
+    return response.data
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/courseofferings/${id}`, data)
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/courseofferings/${id}`)
+    return response.data
+  },
+}
+
+// Applications API
+export const applicationsApi = {
+  getAll: async () => {
+    const response = await api.get('/applications')
+    return response.data
+  },
+  updateStatus: async (id: number, data: { status: string; rejectionReason?: string }) => {
+    const response = await api.put(`/applications/${id}/status`, data)
+    return response.data
+  },
+}
+
+// Audit Logs API
+export const auditLogsApi = {
+  getAll: async (page: number = 1, pageSize: number = 50) => {
+    const response = await api.get(`/auditlogs?page=${page}&pageSize=${pageSize}`)
+    return response.data
+  },
+}
+
+// Enrollments API
+export const enrollmentsApi = {
+  getAll: async (studentId?: number, courseOfferingId?: number, status?: string) => {
+    const params = new URLSearchParams()
+    if (studentId) params.append('studentId', studentId.toString())
+    if (courseOfferingId) params.append('courseOfferingId', courseOfferingId.toString())
+    if (status) params.append('status', status)
+    const response = await api.get(`/enrollments${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/enrollments/${id}`)
+    return response.data
+  },
+}
+
+// Grades API
+export const gradesApi = {
+  getEnrollmentGrades: async (enrollmentId: number) => {
+    const response = await api.get(`/grades/enrollment/${enrollmentId}`)
+    return response.data
+  },
+}
+
+// Final Grades API
+export const finalGradesApi = {
+  getByOffering: async (courseOfferingId: number) => {
+    const response = await api.get(`/finalgrades?courseOfferingId=${courseOfferingId}`)
+    return response.data
+  },
+}
+
+// GPA Records API
+export const gpaRecordsApi = {
+  getAll: async (studentId?: number, termId?: number) => {
+    const params = new URLSearchParams()
+    if (studentId) params.append('studentId', studentId.toString())
+    if (termId) params.append('termId', termId.toString())
+    const response = await api.get(`/gparecords${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  getByStudent: async (studentId: number) => {
+    const response = await api.get(`/gparecords/student/${studentId}`)
+    return response.data
+  },
+}
+
+// Transcripts API
+export const transcriptsApi = {
+  getAll: async (studentId?: number) => {
+    const params = new URLSearchParams()
+    if (studentId) params.append('studentId', studentId.toString())
+    const response = await api.get(`/transcripts${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  generate: async (studentId: number, isOfficial: boolean = true) => {
+    const response = await api.post('/transcripts/admin-generate', { studentId, isOfficial })
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/transcripts/${id}`)
+    return response.data
+  },
+}
+
+// Student Profiles API
+export const studentProfilesApi = {
+  getAll: async (programId?: number, status?: string) => {
+    const params = new URLSearchParams()
+    if (programId) params.append('programId', programId.toString())
+    if (status) params.append('status', status)
+    const response = await api.get(`/studentprofiles${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/studentprofiles/${id}`)
+    return response.data
+  },
+  create: async (data: any) => {
+    const response = await api.post('/studentprofiles', data)
+    return response.data
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/studentprofiles/${id}`, data)
+    return response.data
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/studentprofiles/${id}`)
     return response.data
   },
 }

@@ -14,6 +14,7 @@ import FileUpload from '@/components/ui/FileUpload'
 
 const courseMaterialSchema = z.object({
   courseId: z.number().min(1, 'Please select a course'),
+  courseOfferingId: z.number().nullable().optional(),
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   fileUrl: z.string().min(1, 'File URL is required'),
@@ -28,6 +29,7 @@ type CourseMaterialFormData = z.infer<typeof courseMaterialSchema>
 interface CourseMaterial {
   id: number
   courseId: number
+  courseOfferingId?: number | null
   courseName: string
   title: string
   description?: string
@@ -49,6 +51,8 @@ export default function EditCourseMaterialPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [courses, setCourses] = useState<{ id: number; name: string }[]>([])
+  const [courseOfferings, setCourseOfferings] = useState<any[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [currentMaterial, setCurrentMaterial] = useState<CourseMaterial | null>(null)
   const [uploadedFile, setUploadedFile] = useState<{
     fileUrl: string
@@ -78,6 +82,22 @@ export default function EditCourseMaterialPage() {
         const material = materialResponse.data
         setCurrentMaterial(material)
         setCourses(coursesResponse.data || [])
+        setSelectedCourseId(material.courseId)
+
+        // Fetch course offerings if courseId exists
+        if (material.courseId) {
+          try {
+            const offeringsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${material.courseId}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            })
+            const offeringsResult = await offeringsResponse.json()
+            setCourseOfferings(offeringsResult.data || [])
+          } catch (err) {
+            console.error('Failed to fetch course offerings:', err)
+          }
+        }
 
         // Set initial file data
         setUploadedFile({
@@ -88,6 +108,7 @@ export default function EditCourseMaterialPage() {
 
         reset({
           courseId: material.courseId,
+          courseOfferingId: material.courseOfferingId || null,
           title: material.title,
           description: material.description || '',
           fileUrl: material.fileUrl,
@@ -108,6 +129,28 @@ export default function EditCourseMaterialPage() {
       fetchData()
     }
   }, [materialId, reset, setValue])
+
+  useEffect(() => {
+    const fetchCourseOfferings = async () => {
+      if (!selectedCourseId) {
+        setCourseOfferings([])
+        return
+      }
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${selectedCourseId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+        const result = await response.json()
+        setCourseOfferings(result.data || [])
+      } catch (err: any) {
+        console.error('Failed to fetch course offerings:', err)
+        setCourseOfferings([])
+      }
+    }
+    fetchCourseOfferings()
+  }, [selectedCourseId])
 
   const handleFileUploadSuccess = (fileUrl: string, fileName: string) => {
     // Determine file type from file extension
@@ -186,8 +229,27 @@ export default function EditCourseMaterialPage() {
               value: course.id,
               label: course.name,
             }))}
-            {...register('courseId', { valueAsNumber: true })}
+            {...register('courseId', {
+              valueAsNumber: true,
+              onChange: (e) => {
+                const courseId = parseInt(e.target.value)
+                setSelectedCourseId(courseId || null)
+                setValue('courseOfferingId', null)
+              }
+            })}
           />
+
+          {selectedCourseId && (
+            <Select
+              label="Course Offering (Optional)"
+              error={errors.courseOfferingId?.message}
+              options={courseOfferings.map((offering: any) => ({
+                value: offering.id,
+                label: `${offering.section} - ${offering.termName} (${offering.facultyName || 'No Faculty'})`,
+              }))}
+              {...register('courseOfferingId', { valueAsNumber: true })}
+            />
+          )}
 
           <Input
             label="Title"

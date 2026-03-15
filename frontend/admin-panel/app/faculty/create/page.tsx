@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -56,7 +57,11 @@ export default function CreateFacultyPage() {
     const fetchUsers = async () => {
       try {
         const response = await usersApi.getAll()
-        setUsers(response.data || [])
+        // Filter only users with Faculty role
+        const facultyUsers = (response.data || []).filter((user: any) =>
+          user.roles?.some((role: string) => role === 'Faculty')
+        )
+        setUsers(facultyUsers)
       } catch (err: any) {
         console.error('Failed to fetch users:', err)
       }
@@ -114,20 +119,56 @@ export default function CreateFacultyPage() {
         </div>
       )}
 
+      {/* No Faculty Users Warning */}
+      {users.length === 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="font-semibold text-orange-900 mb-2">No Faculty Users Found</h3>
+              <p className="text-orange-800 mb-4">
+                To create a faculty profile, you need a user with the <strong>Faculty</strong> role.
+                Currently, there are no users with this role.
+              </p>
+              <div className="space-y-2 text-sm text-orange-800">
+                <p><strong>Option 1:</strong> Create a new user with Faculty role</p>
+                <p><strong>Option 2:</strong> Edit an existing user and add the Faculty role</p>
+              </div>
+              <div className="mt-4">
+                <Link href="/users">
+                  <Button>
+                    <span className="mr-2">👥</span>
+                    Go to Users Management
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* User Selection */}
-          <Select
-            label="Select User"
-            required
-            error={errors.userId?.message}
-            options={users.map((user) => ({
-              value: user.id,
-              label: `${user.firstName} ${user.lastName} (${user.email})`,
-            }))}
-            {...register('userId')}
-          />
+          <div>
+            <Select
+              label="Select User"
+              required
+              error={errors.userId?.message}
+              options={users.map((user) => ({
+                value: user.id,
+                label: `${user.firstName} ${user.lastName} (${user.email})`,
+              }))}
+              {...register('userId')}
+              disabled={users.length === 0}
+            />
+            {users.length === 0 && (
+              <p className="mt-2 text-sm text-orange-600">
+                Please create a user with Faculty role first
+              </p>
+            )}
+          </div>
 
           {/* Title */}
           <Input

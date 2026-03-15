@@ -9,13 +9,15 @@ import { galleryApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
+import FileUpload from '@/components/ui/FileUpload'
 
 const gallerySchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
-  imageUrl: z.string().url('Must be a valid URL'),
+  imageUrl: z.string().min(1, 'Image is required'),
   description: z.string().optional(),
   category: z.string().optional(),
   displayOrder: z.number().min(0, 'Display order must be at least 0').default(0),
+  isActive: z.boolean().default(true),
 })
 
 type GalleryFormData = z.infer<typeof gallerySchema>
@@ -34,6 +36,8 @@ export default function EditGalleryPage() {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<GalleryFormData>({
     resolver: zodResolver(gallerySchema),
   })
@@ -49,6 +53,7 @@ export default function EditGalleryPage() {
           description: response.data.description || '',
           category: response.data.category || '',
           displayOrder: response.data.displayOrder,
+          isActive: response.data.isActive ?? true,
         })
       } catch (err: any) {
         console.error('Failed to fetch gallery item:', err)
@@ -114,14 +119,29 @@ export default function EditGalleryPage() {
             {...register('title')}
           />
 
-          <Input
-            label="Image URL"
-            type="url"
-            placeholder="https://example.com/image.jpg"
-            required
-            error={errors.imageUrl?.message}
-            {...register('imageUrl')}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Image <span className="text-red-500">*</span>
+            </label>
+            <FileUpload
+              folder="gallery"
+              accept="image/*"
+              preview={true}
+              onUploadSuccess={(fileUrl) => setValue('imageUrl', fileUrl)}
+            />
+            {errors.imageUrl && (
+              <p className="mt-1 text-sm text-red-600">{errors.imageUrl.message}</p>
+            )}
+            {watch('imageUrl') && (
+              <div className="mt-2">
+                <img
+                  src={watch('imageUrl')?.startsWith('http') ? watch('imageUrl') : `http://localhost:5000${watch('imageUrl')}`}
+                  alt={watch('title') || 'Gallery image'}
+                  className="max-w-xs rounded-lg border border-gray-200"
+                />
+              </div>
+            )}
+          </div>
 
           <Textarea
             label="Description"
@@ -145,6 +165,18 @@ export default function EditGalleryPage() {
             error={errors.displayOrder?.message}
             {...register('displayOrder', { valueAsNumber: true })}
           />
+
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="isActive"
+              className="w-4 h-4 text-[#8B1A1A] border-gray-300 rounded focus:ring-[#8B1A1A]"
+              {...register('isActive')}
+            />
+            <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+              Active (visible on public site)
+            </label>
+          </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
             <Button

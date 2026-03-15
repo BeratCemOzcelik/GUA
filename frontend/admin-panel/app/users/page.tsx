@@ -73,6 +73,12 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold text-gray-900">Users</h1>
           <p className="text-gray-600 mt-1">Manage system users and roles</p>
         </div>
+        <Link href="/users/create">
+          <Button>
+            <span className="mr-2">➕</span>
+            Add User
+          </Button>
+        </Link>
       </div>
 
       {/* Error Message */}

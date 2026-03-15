@@ -110,7 +110,7 @@ export default function GalleryPage() {
               <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="aspect-video bg-gray-100 relative">
                   <img
-                    src={item.imageUrl}
+                    src={item.imageUrl.startsWith('http') ? item.imageUrl : `http://localhost:5000${item.imageUrl}`}
                     alt={item.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {

@@ -14,6 +14,7 @@ import FileUpload from '@/components/ui/FileUpload'
 
 const courseMaterialSchema = z.object({
   courseId: z.number().min(1, 'Please select a course'),
+  courseOfferingId: z.number().nullable().optional(),
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   fileUrl: z.string().min(1, 'Please upload a file'),
@@ -30,6 +31,8 @@ export default function CreateCourseMaterialPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [courses, setCourses] = useState<{ id: number; name: string }[]>([])
+  const [courseOfferings, setCourseOfferings] = useState<any[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [uploadedFile, setUploadedFile] = useState<{
     fileUrl: string
     fileName: string
@@ -60,6 +63,28 @@ export default function CreateCourseMaterialPage() {
     }
     fetchCourses()
   }, [])
+
+  useEffect(() => {
+    const fetchCourseOfferings = async () => {
+      if (!selectedCourseId) {
+        setCourseOfferings([])
+        return
+      }
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${selectedCourseId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+        const result = await response.json()
+        setCourseOfferings(result.data || [])
+      } catch (err: any) {
+        console.error('Failed to fetch course offerings:', err)
+        setCourseOfferings([])
+      }
+    }
+    fetchCourseOfferings()
+  }, [selectedCourseId])
 
   const handleFileUploadSuccess = (fileUrl: string, fileName: string) => {
     // Determine file type from file extension
@@ -130,8 +155,27 @@ export default function CreateCourseMaterialPage() {
               value: course.id,
               label: course.name,
             }))}
-            {...register('courseId', { valueAsNumber: true })}
+            {...register('courseId', {
+              valueAsNumber: true,
+              onChange: (e) => {
+                const courseId = parseInt(e.target.value)
+                setSelectedCourseId(courseId || null)
+                setValue('courseOfferingId', null)
+              }
+            })}
           />
+
+          {selectedCourseId && (
+            <Select
+              label="Course Offering (Optional)"
+              error={errors.courseOfferingId?.message}
+              options={courseOfferings.map((offering: any) => ({
+                value: offering.id,
+                label: `${offering.section} - ${offering.termName} (${offering.facultyName || 'No Faculty'})`,
+              }))}
+              {...register('courseOfferingId', { valueAsNumber: true })}
+            />
+          )}
 
           <Input
             label="Title"

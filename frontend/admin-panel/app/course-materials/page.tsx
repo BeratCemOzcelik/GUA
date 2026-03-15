@@ -191,9 +191,7 @@ export default function CourseMaterialsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
                         <a
-                          href={material.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={`http://localhost:5000/api/files/download?fileUrl=${encodeURIComponent(material.fileUrl)}`}
                           className="text-[#8B1A1A] hover:text-[#6B1414] font-medium transition-colors"
                         >
                           ⬇️ Download

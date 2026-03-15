@@ -30,6 +30,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<FinalGrade> FinalGrades { get; set; }
     public DbSet<GPARecord> GPARecords { get; set; }
     public DbSet<Transcript> Transcripts { get; set; }
+    public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
 
     // Faculty
     public DbSet<FacultyProfile> FacultyProfiles { get; set; }
@@ -150,7 +151,6 @@ public class ApplicationDbContext : DbContext
         // CourseOffering
         modelBuilder.Entity<CourseOffering>(entity =>
         {
-            entity.HasKey(e => e.Id);
             entity.HasOne(e => e.Course)
                 .WithMany(c => c.CourseOfferings)
                 .HasForeignKey(e => e.CourseId)
@@ -161,7 +161,7 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Faculty)
                 .WithMany(f => f.CourseOfferings)
-                .HasForeignKey(e => e.FacultyId)
+                .HasForeignKey(e => e.FacultyProfileId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -364,6 +364,23 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.User)
                 .WithMany(u => u.AuditLogs)
                 .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // AssignmentSubmission
+        modelBuilder.Entity<AssignmentSubmission>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.EnrollmentId, e.GradeComponentId }).IsUnique();
+            entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.FileUrl).IsRequired();
+            entity.HasOne(e => e.Enrollment)
+                .WithMany(en => en.AssignmentSubmissions)
+                .HasForeignKey(e => e.EnrollmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.GradeComponent)
+                .WithMany(gc => gc.AssignmentSubmissions)
+                .HasForeignKey(e => e.GradeComponentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

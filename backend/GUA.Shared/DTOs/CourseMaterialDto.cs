@@ -19,8 +19,7 @@ public class CourseMaterialDto
 
 public class CreateCourseMaterialDto
 {
-    public int CourseId { get; set; }
-    public int? CourseOfferingId { get; set; }
+    public int CourseOfferingId { get; set; }  // Required - used to derive CourseId
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string FileUrl { get; set; } = string.Empty;
@@ -30,6 +29,7 @@ public class CreateCourseMaterialDto
 
 public class UpdateCourseMaterialDto
 {
+    public int? CourseOfferingId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string FileUrl { get; set; } = string.Empty;

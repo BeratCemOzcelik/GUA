@@ -277,6 +277,124 @@ public class FacultyProfilesController : ControllerBase
         }
     }
 
+    [HttpGet("my-profile")]
+    [Authorize(Roles = "Faculty")]
+    public async Task<ActionResult<ApiResponse<FacultyProfileDto>>> GetMyProfile()
+    {
+        try
+        {
+            // Get current user ID from claims
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(ApiResponse<FacultyProfileDto>.FailureResult("Invalid user"));
+            }
+
+            // Find faculty profile for this user
+            var profiles = await _facultyProfileRepository.GetAllAsync();
+            var profile = profiles.FirstOrDefault(p => p.UserId == userId);
+
+            if (profile == null)
+            {
+                return NotFound(ApiResponse<FacultyProfileDto>.FailureResult("Faculty profile not found. Please contact administrator."));
+            }
+
+            var user = await _userRepository.GetByIdAsync(profile.UserId);
+
+            var dto = new FacultyProfileDto
+            {
+                Id = profile.Id,
+                UserId = profile.UserId,
+                UserEmail = user?.Email ?? string.Empty,
+                FirstName = user?.FirstName ?? string.Empty,
+                LastName = user?.LastName ?? string.Empty,
+                Title = profile.Title,
+                Bio = profile.Bio,
+                ResearchInterests = profile.ResearchInterests,
+                OfficeLocation = profile.OfficeLocation,
+                OfficeHours = profile.OfficeHours,
+                PhotoUrl = profile.PhotoUrl,
+                LinkedInUrl = profile.LinkedInUrl,
+                GoogleScholarUrl = profile.GoogleScholarUrl,
+                CreatedAt = profile.CreatedAt
+            };
+
+            return Ok(ApiResponse<FacultyProfileDto>.SuccessResult(dto));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving faculty profile");
+            return StatusCode(500, ApiResponse<FacultyProfileDto>.FailureResult(
+                "An error occurred while retrieving your profile"));
+        }
+    }
+
+    [HttpPut("my-profile")]
+    [Authorize(Roles = "Faculty")]
+    public async Task<ActionResult<ApiResponse<FacultyProfileDto>>> UpdateMyProfile([FromBody] UpdateMyProfileRequest request)
+    {
+        try
+        {
+            // Get current user ID from claims
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(ApiResponse<FacultyProfileDto>.FailureResult("Invalid user"));
+            }
+
+            // Find faculty profile for this user
+            var profiles = await _facultyProfileRepository.GetAllAsync();
+            var profile = profiles.FirstOrDefault(p => p.UserId == userId);
+
+            if (profile == null)
+            {
+                return NotFound(ApiResponse<FacultyProfileDto>.FailureResult("Faculty profile not found"));
+            }
+
+            // Update profile fields
+            profile.Title = request.Title;
+            profile.Bio = request.Bio;
+            profile.ResearchInterests = request.ResearchInterests;
+            profile.OfficeLocation = request.OfficeLocation;
+            profile.OfficeHours = request.OfficeHours;
+            profile.PhotoUrl = request.PhotoUrl;
+            profile.LinkedInUrl = request.LinkedInUrl;
+            profile.GoogleScholarUrl = request.GoogleScholarUrl;
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            await _facultyProfileRepository.UpdateAsync(profile);
+
+            // Get user info for response
+            var user = await _userRepository.GetByIdAsync(userId);
+
+            var dto = new FacultyProfileDto
+            {
+                Id = profile.Id,
+                UserId = profile.UserId,
+                UserEmail = user?.Email ?? string.Empty,
+                FirstName = user?.FirstName ?? string.Empty,
+                LastName = user?.LastName ?? string.Empty,
+                Title = profile.Title,
+                Bio = profile.Bio,
+                ResearchInterests = profile.ResearchInterests,
+                OfficeLocation = profile.OfficeLocation,
+                OfficeHours = profile.OfficeHours,
+                PhotoUrl = profile.PhotoUrl,
+                LinkedInUrl = profile.LinkedInUrl,
+                GoogleScholarUrl = profile.GoogleScholarUrl,
+                CreatedAt = profile.CreatedAt
+            };
+
+            return Ok(ApiResponse<FacultyProfileDto>.SuccessResult(dto, "Profile updated successfully"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating faculty profile");
+            return StatusCode(500, ApiResponse<FacultyProfileDto>.FailureResult(
+                "An error occurred while updating your profile"));
+        }
+    }
+
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(int id)

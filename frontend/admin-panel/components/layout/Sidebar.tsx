@@ -16,9 +16,18 @@ const navItems: NavItem[] = [
   { name: 'Programs', href: '/programs', icon: '🎓' },
   { name: 'Courses', href: '/courses', icon: '📚' },
   { name: 'Academic Terms', href: '/academic-terms', icon: '📅' },
+  { name: 'Course Offerings', href: '/course-offerings', icon: '📖' },
+  { name: 'Course Materials', href: '/course-materials', icon: '📄' },
+  { name: 'Faculty Profiles', href: '/faculty', icon: '👨‍🏫' },
+  { name: 'Student Profiles', href: '/student-profiles', icon: '👨‍🎓' },
   { name: 'Blog Posts', href: '/blog', icon: '✍️' },
   { name: 'Gallery', href: '/gallery', icon: '🖼️' },
+  { name: 'Enrollments', href: '/enrollments', icon: '📝' },
+  { name: 'Grades & GPA', href: '/grades', icon: '📈' },
+  { name: 'Transcripts', href: '/transcripts', icon: '📃' },
+  { name: 'Applications', href: '/applications', icon: '📋' },
   { name: 'Users', href: '/users', icon: '👥' },
+  { name: 'Audit Logs', href: '/audit-logs', icon: '📜' },
 ]
 
 export default function Sidebar() {

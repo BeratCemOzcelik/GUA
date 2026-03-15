@@ -15,6 +15,7 @@ public class CourseMaterialsController : ControllerBase
 {
     private readonly IRepository<CourseMaterial> _repository;
     private readonly IRepository<Course> _courseRepository;
+    private readonly IRepository<CourseOffering> _courseOfferingRepository;
     private readonly IRepository<FacultyProfile> _facultyProfileRepository;
     private readonly IRepository<User> _userRepository;
     private readonly ILogger<CourseMaterialsController> _logger;
@@ -22,12 +23,14 @@ public class CourseMaterialsController : ControllerBase
     public CourseMaterialsController(
         IRepository<CourseMaterial> repository,
         IRepository<Course> courseRepository,
+        IRepository<CourseOffering> courseOfferingRepository,
         IRepository<FacultyProfile> facultyProfileRepository,
         IRepository<User> userRepository,
         ILogger<CourseMaterialsController> logger)
     {
         _repository = repository;
         _courseRepository = courseRepository;
+        _courseOfferingRepository = courseOfferingRepository;
         _facultyProfileRepository = facultyProfileRepository;
         _userRepository = userRepository;
         _logger = logger;
@@ -154,7 +157,14 @@ public class CourseMaterialsController : ControllerBase
                 return BadRequest(ApiResponse<CourseMaterialDto>.FailureResult("File type is required"));
             }
 
-            var course = await _courseRepository.GetByIdAsync(request.CourseId);
+            // Get course offering to derive courseId
+            var courseOffering = await _courseOfferingRepository.GetByIdAsync(request.CourseOfferingId);
+            if (courseOffering == null)
+            {
+                return BadRequest(ApiResponse<CourseMaterialDto>.FailureResult("Course offering not found"));
+            }
+
+            var course = await _courseRepository.GetByIdAsync(courseOffering.CourseId);
             if (course == null)
             {
                 return BadRequest(ApiResponse<CourseMaterialDto>.FailureResult("Course not found"));
@@ -177,7 +187,7 @@ public class CourseMaterialsController : ControllerBase
 
             var material = new CourseMaterial
             {
-                CourseId = request.CourseId,
+                CourseId = courseOffering.CourseId,
                 CourseOfferingId = request.CourseOfferingId,
                 Title = request.Title,
                 Description = request.Description,
@@ -262,6 +272,7 @@ public class CourseMaterialsController : ControllerBase
                 }
             }
 
+            material.CourseOfferingId = request.CourseOfferingId;
             material.Title = request.Title;
             material.Description = request.Description;
             material.FileUrl = request.FileUrl;
@@ -299,6 +310,52 @@ public class CourseMaterialsController : ControllerBase
             _logger.LogError(ex, "Error updating course material {Id}", id);
             return StatusCode(500, ApiResponse<CourseMaterialDto>.FailureResult(
                 "An error occurred while updating the course material"));
+        }
+    }
+
+    [HttpGet("course-offering/{courseOfferingId}")]
+    [Authorize(Roles = "Student,Faculty,Admin,SuperAdmin")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CourseMaterialDto>>>> GetByCourseOffering(int courseOfferingId)
+    {
+        try
+        {
+            var materials = await _repository.FindAsync(m =>
+                m.CourseOfferingId == courseOfferingId &&
+                m.IsActive);
+
+            var dtos = new List<CourseMaterialDto>();
+
+            foreach (var material in materials)
+            {
+                var course = await _courseRepository.GetByIdAsync(material.CourseId);
+                var faculty = await _facultyProfileRepository.GetByIdAsync(material.UploadedByFacultyId);
+                var user = faculty != null ? await _userRepository.GetByIdAsync(faculty.UserId) : null;
+
+                dtos.Add(new CourseMaterialDto
+                {
+                    Id = material.Id,
+                    CourseId = material.CourseId,
+                    CourseName = course?.Name ?? "",
+                    CourseCode = course?.Code ?? "",
+                    CourseOfferingId = material.CourseOfferingId,
+                    Title = material.Title,
+                    Description = material.Description ?? "",
+                    FileUrl = material.FileUrl,
+                    FileType = material.FileType,
+                    Version = material.Version,
+                    UploadedByUserName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "",
+                    IsActive = material.IsActive,
+                    CreatedAt = material.CreatedAt
+                });
+            }
+
+            return Ok(ApiResponse<IEnumerable<CourseMaterialDto>>.SuccessResult(dtos));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving course materials for offering {OfferingId}", courseOfferingId);
+            return StatusCode(500, ApiResponse<IEnumerable<CourseMaterialDto>>.FailureResult(
+                "An error occurred while retrieving course materials"));
         }
     }
 

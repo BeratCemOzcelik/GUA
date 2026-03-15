@@ -17,4 +17,5 @@ public class Enrollment : BaseEntity
     public virtual CourseOffering CourseOffering { get; set; } = null!;
     public virtual ICollection<Grade> Grades { get; set; } = new List<Grade>();
     public virtual FinalGrade? FinalGrade { get; set; }
+    public virtual ICollection<AssignmentSubmission> AssignmentSubmissions { get; set; } = new List<AssignmentSubmission>();
 }

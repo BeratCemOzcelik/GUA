@@ -8,6 +8,8 @@ import {
   programsApi,
   coursesApi,
   usersApi,
+  applicationsApi,
+  auditLogsApi,
 } from '@/lib/api'
 
 interface DashboardStats {
@@ -15,32 +17,59 @@ interface DashboardStats {
   programs: number
   courses: number
   users: number
+  applications: number
+}
+
+interface AuditLog {
+  id: number
+  userEmail: string
+  action: string
+  entityName: string
+  entityId: string
+  timestamp: string
+}
+
+const actionIcons: Record<string, string> = {
+  Create: '➕',
+  Update: '✏️',
+  Delete: '🗑️',
+  Login: '🔑',
+  Logout: '🚪',
 }
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [userName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try { return JSON.parse(localStorage.getItem('user') || '{}').firstName || '' } catch { return '' }
+    }
+    return ''
+  })
   const [stats, setStats] = useState<DashboardStats>({
     departments: 0,
     programs: 0,
     courses: 0,
     users: 0,
+    applications: 0,
   })
+  const [recentActivity, setRecentActivity] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        // Fetch all counts in parallel
-        const [departmentsRes, programsRes, coursesRes, usersRes] =
+        const [departmentsRes, programsRes, coursesRes, usersRes, applicationsRes, auditRes] =
           await Promise.all([
             departmentsApi.getAll(),
             programsApi.getAll(),
             coursesApi.getAll(),
             usersApi.getAll(),
+            applicationsApi.getAll().catch(() => ({ data: [] })),
+            auditLogsApi.getAll(1, 10).catch(() => ({ data: [] })),
           ])
 
         setStats({
@@ -48,17 +77,22 @@ export default function DashboardPage() {
           programs: programsRes.data?.length || 0,
           courses: coursesRes.data?.length || 0,
           users: usersRes.data?.length || 0,
+          applications: applicationsRes.data?.length || 0,
         })
+
+        setRecentActivity(auditRes.data || [])
       } catch (err: any) {
-        console.error('Failed to fetch dashboard stats:', err)
-        setError(err.message || 'Failed to load dashboard statistics')
+        console.error('Failed to fetch dashboard data:', err)
+        setError(err.message || 'Failed to load dashboard')
       } finally {
         setLoading(false)
       }
     }
 
-    if (user) {
-      fetchStats()
+    // Check user state or localStorage token (handles race condition after login)
+    const hasAuth = user || (typeof window !== 'undefined' && localStorage.getItem('accessToken'))
+    if (hasAuth) {
+      fetchData()
     }
   }, [user])
 
@@ -69,12 +103,23 @@ export default function DashboardPage() {
     return 'Good Evening'
   }
 
+  const formatTimeAgo = (timestamp: string) => {
+    const diff = Date.now() - new Date(timestamp).getTime()
+    const minutes = Math.floor(diff / 60000)
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-[#8B1A1A] to-[#660000] rounded-lg shadow-lg p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">
-          {getGreeting()}, {user?.firstName}!
+          {getGreeting()}, {user?.firstName || userName}!
         </h1>
         <p className="text-white/90">
           Welcome to the GUA Admin Panel. Here&apos;s an overview of your system.
@@ -92,32 +137,39 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard
-          title="Total Departments"
+          title="Departments"
           value={stats.departments}
           icon="🏢"
           color="#8B1A1A"
           loading={loading}
         />
         <StatCard
-          title="Total Programs"
+          title="Programs"
           value={stats.programs}
           icon="🎓"
           color="#2563EB"
           loading={loading}
         />
         <StatCard
-          title="Total Courses"
+          title="Courses"
           value={stats.courses}
           icon="📚"
           color="#059669"
           loading={loading}
         />
         <StatCard
-          title="Total Users"
+          title="Users"
           value={stats.users}
           icon="👥"
+          color="#7C3AED"
+          loading={loading}
+        />
+        <StatCard
+          title="Applications"
+          value={stats.applications}
+          icon="📋"
           color="#DC2626"
           loading={loading}
         />
@@ -142,11 +194,11 @@ export default function DashboardPage() {
             <span className="font-medium text-gray-900">Add Program</span>
           </a>
           <a
-            href="/courses"
+            href="/applications"
             className="flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
           >
-            <span className="text-2xl">➕</span>
-            <span className="font-medium text-gray-900">Add Course</span>
+            <span className="text-2xl">📋</span>
+            <span className="font-medium text-gray-900">View Applications</span>
           </a>
           <a
             href="/blog"
@@ -160,20 +212,37 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+          <a href="/audit-logs" className="text-sm text-[#8B1A1A] hover:underline font-medium">
+            View All
+          </a>
+        </div>
         <div className="space-y-3">
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-            <span className="text-xl">📊</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">
-                Dashboard statistics loaded
-              </p>
-              <p className="text-xs text-gray-500">Just now</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B1A1A]"></div>
             </div>
-          </div>
-          <div className="text-center py-8 text-gray-500 text-sm">
-            No recent activity to display
-          </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 text-sm">
+              No recent activity to display
+            </div>
+          ) : (
+            recentActivity.map(log => (
+              <div key={log.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-xl">{actionIcons[log.action] || '📝'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    <span className="text-gray-500">{log.userEmail}</span>{' '}
+                    {log.action.toLowerCase()}d{' '}
+                    <span className="font-semibold">{log.entityName}</span>
+                    {log.entityId && <span className="text-gray-400"> #{log.entityId}</span>}
+                  </p>
+                  <p className="text-xs text-gray-500">{formatTimeAgo(log.timestamp)}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

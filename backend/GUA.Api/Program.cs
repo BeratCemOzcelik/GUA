@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using GUA.Api.Middleware;
 using GUA.Core.Interfaces;
 using GUA.Infrastructure.Data;
@@ -11,7 +12,11 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -22,6 +27,7 @@ builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IFileStorageService>(provider =>
 {
     var env = provider.GetRequiredService<IWebHostEnvironment>();
@@ -104,6 +110,7 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+
 });
 
 var app = builder.Build();
