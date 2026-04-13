@@ -59,6 +59,28 @@ export default function TranscriptsPage() {
     }
   }
 
+  const handleDownload = async (id: number) => {
+    try {
+      setError('')
+      const response = await transcriptsApi.downloadPdf(id)
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const contentDisposition = response.headers['content-disposition']
+      const fileName = contentDisposition
+        ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || `transcript_${id}.pdf`
+        : `transcript_${id}.pdf`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to download PDF')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -165,7 +187,13 @@ export default function TranscriptsPage() {
                     {t.generatedAt ? new Date(t.generatedAt).toLocaleString() : 'N/A'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{t.generatedByName || 'N/A'}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center space-x-3">
+                    <button
+                      onClick={() => handleDownload(t.id)}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      Download PDF
+                    </button>
                     <button
                       onClick={() => handleDelete(t.id)}
                       className="text-red-600 hover:text-red-800 text-sm font-medium"

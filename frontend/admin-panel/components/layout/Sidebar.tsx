@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { name: 'Enrollments', href: '/enrollments', icon: '📝' },
   { name: 'Grades & GPA', href: '/grades', icon: '📈' },
   { name: 'Transcripts', href: '/transcripts', icon: '📃' },
+  { name: 'Payments', href: '/payments', icon: '💳' },
   { name: 'Applications', href: '/applications', icon: '📋' },
   { name: 'Users', href: '/users', icon: '👥' },
   { name: 'Audit Logs', href: '/audit-logs', icon: '📜' },

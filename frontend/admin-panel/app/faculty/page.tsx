@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { facultyApi } from '@/lib/api'
+import { facultyApi, getFileUrl } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 
@@ -143,7 +143,7 @@ export default function FacultyPage() {
                       <div className="flex-shrink-0">
                         <img
                           className="h-10 w-10 rounded-full object-cover border-2 border-[#8B1A1A]"
-                          src={prof.photoUrl ? (prof.photoUrl.startsWith('http') ? prof.photoUrl : `http://localhost:5000${prof.photoUrl}`) : '/images/avatar-placeholder.png'}
+                          src={prof.photoUrl ? getFileUrl(prof.photoUrl) : '/images/avatar-placeholder.png'}
                           alt={`${prof.firstName} ${prof.lastName}`}
                         />
                       </div>

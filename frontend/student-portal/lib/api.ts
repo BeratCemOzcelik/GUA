@@ -163,6 +163,10 @@ export const transcriptApi = {
     const response = await api.get('/transcripts/history')
     return response.data
   },
+  downloadPdf: async (id: number) => {
+    const response = await api.get(`/transcripts/${id}/download`, { responseType: 'blob' })
+    return response
+  },
 }
 
 // Academic Terms API (for filtering)
@@ -213,6 +217,22 @@ export const assignmentSubmissionsApi = {
     const params = new URLSearchParams()
     if (courseOfferingId) params.append('courseOfferingId', courseOfferingId.toString())
     const response = await api.get(`/assignmentsubmissions/my-submissions${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+}
+
+// Payments API
+export const paymentsApi = {
+  getMyPayments: async () => {
+    const response = await api.get('/payments/my')
+    return response.data
+  },
+  pay: async (id: number) => {
+    const response = await api.post(`/payments/${id}/pay`)
+    return response.data
+  },
+  checkStatus: async (id: number) => {
+    const response = await api.post(`/payments/${id}/check-status`)
     return response.data
   },
 }

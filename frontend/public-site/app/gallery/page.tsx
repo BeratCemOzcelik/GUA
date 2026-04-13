@@ -130,9 +130,9 @@ export default function GalleryPage() {
           <button onClick={() => setSelectedImage(null)} className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <div className="max-w-4xl w-full" onClick={e => e.stopPropagation()}>
+          <div className="max-w-6xl w-full" onClick={e => e.stopPropagation()}>
             {selectedImage.imageUrl ? (
-              <img src={getFileUrl(selectedImage.imageUrl)} alt={selectedImage.title} className="w-full max-h-[75vh] object-contain rounded-lg" />
+              <img src={getFileUrl(selectedImage.imageUrl)} alt={selectedImage.title} className="w-full max-h-[90vh] object-contain rounded-lg" />
             ) : (
               <div className="w-full h-64 bg-primary rounded-lg flex items-center justify-center">
                 <svg className="w-20 h-20 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>

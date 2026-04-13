@@ -28,6 +28,8 @@ builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddSingleton<GUA.Api.Services.TranscriptPdfService>();
+builder.Services.AddSingleton<GUA.Api.Services.SquarePaymentService>();
 builder.Services.AddScoped<IFileStorageService>(provider =>
 {
     var env = provider.GetRequiredService<IWebHostEnvironment>();

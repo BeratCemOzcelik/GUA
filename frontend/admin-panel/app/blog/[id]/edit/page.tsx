@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { blogApi } from '@/lib/api'
+import { blogApi, getFileUrl } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -158,7 +158,7 @@ export default function EditBlogPage() {
             {watch('featuredImageUrl') && (
               <div className="mt-2">
                 <img
-                  src={watch('featuredImageUrl')?.startsWith('http') ? watch('featuredImageUrl') : `http://localhost:5000${watch('featuredImageUrl')}`}
+                  src={getFileUrl(watch('featuredImageUrl') || '')}
                   alt="Featured"
                   className="max-w-xs rounded-lg border border-gray-200"
                 />

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import WhatsAppWidget from '@/components/WhatsAppWidget'
+import Markdown from 'react-markdown'
 import { blogApi, getFileUrl } from '@/lib/api'
 
 export default function BlogDetailPage() {
@@ -93,8 +94,8 @@ export default function BlogDetailPage() {
             <img src={getFileUrl(post.featuredImageUrl)} alt={post.title} className="w-full h-auto" />
           </div>
         )}
-        <div className="prose max-w-none text-gray-700 leading-relaxed whitespace-pre-line text-lg">
-          {post.content}
+        <div className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-gray-700 prose-li:text-gray-700 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:italic prose-a:text-primary leading-relaxed">
+          <Markdown>{post.content}</Markdown>
         </div>
       </article>
 

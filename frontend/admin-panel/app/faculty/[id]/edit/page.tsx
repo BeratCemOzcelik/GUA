@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { facultyApi, usersApi } from '@/lib/api'
+import { facultyApi, usersApi, getFileUrl } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -203,7 +203,7 @@ export default function EditFacultyPage() {
                 </label>
                 <div className="flex items-center space-x-4">
                   <img
-                    src={currentPhotoUrl.startsWith('http') ? currentPhotoUrl : `http://localhost:5000${currentPhotoUrl}`}
+                    src={getFileUrl(currentPhotoUrl)}
                     alt="Current faculty photo"
                     className="h-32 w-32 rounded-lg object-cover border-2 border-gray-200"
                   />

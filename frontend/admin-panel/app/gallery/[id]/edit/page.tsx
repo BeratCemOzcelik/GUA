@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { galleryApi } from '@/lib/api'
+import { galleryApi, getFileUrl } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -135,7 +135,7 @@ export default function EditGalleryPage() {
             {watch('imageUrl') && (
               <div className="mt-2">
                 <img
-                  src={watch('imageUrl')?.startsWith('http') ? watch('imageUrl') : `http://localhost:5000${watch('imageUrl')}`}
+                  src={getFileUrl(watch('imageUrl') || '')}
                   alt={watch('title') || 'Gallery image'}
                   className="max-w-xs rounded-lg border border-gray-200"
                 />

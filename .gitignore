@@ -15,8 +15,7 @@ obj/
 appsettings.Development.json
 appsettings.Production.json
 
-# Entity Framework
-Migrations/
+# Entity Framework - keep migrations in repo
 
 # User secrets
 secrets.json
@@ -41,6 +40,14 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+
+# Archives
+*.rar
+*.zip
+
+# SQL scripts
+*.sql
 
 # IDE
 .idea/

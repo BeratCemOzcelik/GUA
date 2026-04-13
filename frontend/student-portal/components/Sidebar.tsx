@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { name: 'Materials', href: '/materials', icon: '📁' },
   { name: 'Grades', href: '/grades', icon: '📝' },
   { name: 'Transcript', href: '/transcript', icon: '📜' },
+  { name: 'Payments', href: '/payments', icon: '💳' },
   { name: 'Profile', href: '/profile', icon: '👤' },
 ]
 

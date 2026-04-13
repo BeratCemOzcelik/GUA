@@ -1,3 +1,4 @@
+using GUA.Api.Services;
 using GUA.Core.Entities;
 using GUA.Core.Interfaces;
 using GUA.Shared.DTOs.Common;
@@ -27,6 +28,7 @@ public class TranscriptsController : ControllerBase
     private readonly IRepository<AcademicProgram> _programRepository;
     private readonly IRepository<Department> _departmentRepository;
     private readonly IRepository<User> _userRepository;
+    private readonly TranscriptPdfService _pdfService;
     private readonly ILogger<TranscriptsController> _logger;
 
     public TranscriptsController(
@@ -41,6 +43,7 @@ public class TranscriptsController : ControllerBase
         IRepository<AcademicProgram> programRepository,
         IRepository<Department> departmentRepository,
         IRepository<User> userRepository,
+        TranscriptPdfService pdfService,
         ILogger<TranscriptsController> logger)
     {
         _repository = repository;
@@ -54,6 +57,7 @@ public class TranscriptsController : ControllerBase
         _programRepository = programRepository;
         _departmentRepository = departmentRepository;
         _userRepository = userRepository;
+        _pdfService = pdfService;
         _logger = logger;
     }
 
@@ -481,6 +485,93 @@ public class TranscriptsController : ControllerBase
             _logger.LogError(ex, "Error verifying diploma with code {Code}", code);
             return StatusCode(500, ApiResponse<DiplomaVerificationResult>.FailureResult(
                 "An error occurred while verifying the document"));
+        }
+    }
+
+    [HttpGet("{id:int}/download")]
+    public async Task<IActionResult> DownloadPdf(int id)
+    {
+        try
+        {
+            var transcript = await _repository.GetByIdAsync(id);
+            if (transcript == null)
+            {
+                return NotFound("Transcript not found");
+            }
+
+            // Students can only download their own transcripts
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                var isAdmin = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+                if (!isAdmin)
+                {
+                    var students = await _studentRepository.GetAllAsync();
+                    var student = students.FirstOrDefault(s => s.UserId == userId);
+                    if (student == null || student.Id != transcript.StudentId)
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+
+            var transcriptDataResult = await GetTranscriptData(transcript.StudentId);
+            var okResult = transcriptDataResult.Result as OkObjectResult;
+            if (okResult == null)
+            {
+                return StatusCode(500, "Failed to generate transcript data");
+            }
+
+            var apiResponse = okResult.Value as ApiResponse<TranscriptDataDto>;
+            if (apiResponse?.Data == null)
+            {
+                return StatusCode(500, "Failed to generate transcript data");
+            }
+
+            var pdfBytes = _pdfService.GeneratePdf(apiResponse.Data, transcript.Hash, transcript.IsOfficial);
+
+            var student2 = await _studentRepository.GetByIdAsync(transcript.StudentId);
+            var fileName = $"Transcript_{student2?.StudentNumber ?? transcript.StudentId.ToString()}_{transcript.GeneratedAt:yyyyMMdd}.pdf";
+
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading transcript PDF {Id}", id);
+            return StatusCode(500, "An error occurred while generating the PDF");
+        }
+    }
+
+    [HttpGet("student/{studentId}/preview-pdf")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<IActionResult> PreviewPdf(int studentId)
+    {
+        try
+        {
+            var transcriptDataResult = await GetTranscriptData(studentId);
+            var okResult = transcriptDataResult.Result as OkObjectResult;
+            if (okResult == null)
+            {
+                return StatusCode(500, "Failed to generate transcript data");
+            }
+
+            var apiResponse = okResult.Value as ApiResponse<TranscriptDataDto>;
+            if (apiResponse?.Data == null)
+            {
+                return StatusCode(500, "Failed to generate transcript data");
+            }
+
+            var pdfBytes = _pdfService.GeneratePdf(apiResponse.Data, null, false);
+
+            var student = await _studentRepository.GetByIdAsync(studentId);
+            var fileName = $"Transcript_Preview_{student?.StudentNumber ?? studentId.ToString()}.pdf";
+
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating preview PDF for student {StudentId}", studentId);
+            return StatusCode(500, "An error occurred while generating the PDF");
         }
     }
 

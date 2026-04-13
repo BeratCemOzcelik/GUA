@@ -449,44 +449,45 @@
 5. [x] **Public:** /diploma-inquiry'de verification code ile dogrula
 6. [x] **Public:** Yanlis kod ile dene → hata mesaji
 
-## E4. Tam Basvuru Akisi (End-to-End Application)
-1. [ ] **Public:** /apply sayfasindan basvuru formu doldur ve gonder
-2. [ ] **Admin:** /applications'da yeni basvuruyu gor
-3. [ ] **Admin:** Basvuru durumunu guncelle
+## E4. Tam Basvuru Akisi (End-to-End Application) ✅
+1. [x] **Public:** /apply sayfasindan basvuru formu doldur ve gonder
+2. [x] **Admin:** /applications'da yeni basvuruyu gor
+3. [x] **Admin:** Basvuru durumunu guncelle
 
-## E5. Tam Icerik Akisi (End-to-End Content)
-1. [ ] **Admin:** Yeni blog yazisi olustur (gorsel ile)
-2. [ ] **Public:** /blog'da yeni yaziyi gor
-3. [ ] **Public:** /blog/[slug] detay sayfasinda icerigi gor
-4. [ ] **Admin:** Yeni galeri ogesi ekle
-5. [ ] **Public:** /gallery'de yeni gorsel gorunsun
-6. [ ] **Admin:** Fakulte profili olustur/guncelle
-7. [ ] **Public:** /faculty'de guncel profili gor
+## E5. Tam Icerik Akisi (End-to-End Content) ✅
+1. [x] **Admin:** Yeni blog yazisi olustur (gorsel ile)
+2. [x] **Public:** /blog'da yeni yaziyi gor
+3. [x] **Public:** /blog/[slug] detay sayfasinda icerigi gor
+4. [x] **Admin:** Yeni galeri ogesi ekle
+5. [x] **Public:** /gallery'de yeni gorsel gorunsun
+6. [x] **Admin:** Fakulte profili olustur/guncelle
+7. [x] **Public:** /faculty'de guncel profili gor
 
 ## E6. Materyal ve Odev Akisi
-1. [ ] **Faculty:** Derse materyal yukle
-2. [ ] **Student:** /materials/[courseOfferingId] sayfasinda materyali gor
-3. [ ] **Student:** Dosya indirme linkine tikla, dosya insin
-4. [ ] **Student:** Odev gonder (assignment submission)
-5. [ ] **Faculty:** /grades/submissions/[componentId]'de gonderiyi gor
-6. [ ] **Faculty:** Not ve geri bildirim gir
+1. [x] **Faculty:** Derse materyal yukle
+2. [x] **Student:** /materials/[courseOfferingId] sayfasinda materyali gor
+3. [x] **Student:** Dosya indirme linkine tikla, dosya insin
+4. [x] **Student:** Odev gonder (assignment submission)
+5. [x] **Faculty:** /grades/submissions/[componentId]'de gonderiyi gor
+6. [x] **Faculty:** Not ve geri bildirim gir
+> **NOT:** Geri bildirim (faculty feedback) ozeligi planned feature olarak eklendi. Not girisi calisiyor, yorum alani ileride eklenecek.
 
 ## E7. Guvenlik Testleri
-- [ ] Oturum acmadan admin sayfasina gidildiginde login'e yonlendirme oluyor mu?
-- [ ] Student hesabi ile admin panel'e giris denenince engelleniyor mu?
-- [ ] Faculty hesabi ile student portal'a giris denenince engelleniyor mu?
-- [ ] Token suresi doldugunda otomatik refresh calisiyor mu?
-- [ ] Logout yapilinca tum localStorage temizleniyor mu?
-- [ ] Yanlis token ile API cagrisi 401 donuyor mu?
+- [x] Oturum acmadan admin sayfasina gidildiginde login'e yonlendirme oluyor mu?
+- [x] Student hesabi ile admin panel'e giris denenince engelleniyor mu?
+- [x] Faculty hesabi ile student portal'a giris denenince engelleniyor mu?
+- [x] Token suresi doldugunda otomatik refresh calisiyor mu?
+- [x] Logout yapilinca tum localStorage temizleniyor mu?
+- [x] Yanlis token ile API cagrisi 401 donuyor mu?
 
 ## E8. UI/UX Genel Kontroller
-- [ ] Tum sayfalarda loading spinner gorunuyor mu? (veri yuklenirken)
-- [ ] Hata durumlarinda kullaniciya anlamli mesaj gorunuyor mu?
-- [ ] Basarili islemlerde yesil basari mesaji gorunuyor mu?
-- [ ] Confirm dialoglari calisiyor mu? (silme islemlerinde)
-- [ ] Formlar bos gonderildiginde validasyon mesajlari gorunuyor mu?
-- [ ] Responsive tasarim calisiyor mu? (mobil, tablet, desktop)
-- [ ] Sidebar'da aktif sayfa vurgulu gorunuyor mu?
+- [x] Tum sayfalarda loading spinner gorunuyor mu? (veri yuklenirken)
+- [x] Hata durumlarinda kullaniciya anlamli mesaj gorunuyor mu?
+- [x] Basarili islemlerde yesil basari mesaji gorunuyor mu?
+- [x] Confirm dialoglari calisiyor mu? (silme islemlerinde)
+- [x] Formlar bos gonderildiginde validasyon mesajlari gorunuyor mu?
+- [x] Responsive tasarim calisiyor mu? (mobil, tablet, desktop)
+- [x] Sidebar'da aktif sayfa vurgulu gorunuyor mu?
 
 ---
 

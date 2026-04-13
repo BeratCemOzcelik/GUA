@@ -1,6 +1,13 @@
 import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+const BASE_URL = API_URL.replace('/api', '')
+
+export function getFileUrl(path: string): string {
+  if (!path) return ''
+  if (path.startsWith('http')) return path
+  return `${BASE_URL}${path}`
+}
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -448,6 +455,10 @@ export const transcriptsApi = {
     const response = await api.delete(`/transcripts/${id}`)
     return response.data
   },
+  downloadPdf: async (id: number) => {
+    const response = await api.get(`/transcripts/${id}/download`, { responseType: 'blob' })
+    return response
+  },
 }
 
 // Student Profiles API
@@ -473,6 +484,28 @@ export const studentProfilesApi = {
   },
   delete: async (id: number) => {
     const response = await api.delete(`/studentprofiles/${id}`)
+    return response.data
+  },
+}
+
+// Payments API
+export const paymentsApi = {
+  getAll: async (studentId?: number) => {
+    const params = new URLSearchParams()
+    if (studentId) params.append('studentId', studentId.toString())
+    const response = await api.get(`/payments${params.toString() ? '?' + params.toString() : ''}`)
+    return response.data
+  },
+  generateInstallments: async (data: { studentId: number; amount: number; currency?: string }) => {
+    const response = await api.post('/payments/generate-installments', { currency: 'USD', type: 1, description: 'Tuition', ...data })
+    return response.data
+  },
+  checkStatus: async (id: number) => {
+    const response = await api.post(`/payments/${id}/check-status`)
+    return response.data
+  },
+  deleteStudentPayments: async (studentId: number) => {
+    const response = await api.delete(`/payments/student/${studentId}`)
     return response.data
   },
 }

@@ -44,6 +44,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<Application> Applications { get; set; }
     public DbSet<ApplicationDocument> ApplicationDocuments { get; set; }
 
+    // Payments
+    public DbSet<Payment> Payments { get; set; }
+
     // Audit
     public DbSet<AuditLog> AuditLogs { get; set; }
 
@@ -381,6 +384,19 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.GradeComponent)
                 .WithMany(gc => gc.AssignmentSubmissions)
                 .HasForeignKey(e => e.GradeComponentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Payment
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Amount).HasColumnType("decimal(10,2)");
+            entity.Property(e => e.Currency).IsRequired().HasMaxLength(3);
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(500);
+            entity.HasOne(e => e.Student)
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

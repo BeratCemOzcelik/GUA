@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { galleryApi } from '@/lib/api'
+import { galleryApi, getFileUrl } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 
@@ -110,7 +110,7 @@ export default function GalleryPage() {
               <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="aspect-video bg-gray-100 relative">
                   <img
-                    src={item.imageUrl.startsWith('http') ? item.imageUrl : `http://localhost:5000${item.imageUrl}`}
+                    src={getFileUrl(item.imageUrl)}
                     alt={item.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
