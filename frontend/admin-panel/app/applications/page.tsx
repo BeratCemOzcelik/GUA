@@ -46,6 +46,13 @@ export default function ApplicationsPage() {
     isOpen: boolean
     application: Application | null
   }>({ isOpen: false, application: null })
+  const [approvalResult, setApprovalResult] = useState<{
+    isOpen: boolean
+    studentNumber?: string
+    password?: string
+    paymentPlan?: boolean
+    message?: string
+  }>({ isOpen: false })
 
   const fetchApplications = async () => {
     try {
@@ -82,9 +89,13 @@ export default function ApplicationsPage() {
       if (newStatus === 'Approved' && response.data) {
         const result = response.data
         if (result.studentCreated) {
-          alert(`Student account created!\n\nStudent Number: ${result.studentNumber}\nPassword: ${result.generatedPassword}\nPayment Plan: ${result.paymentPlanCreated ? 'Created (6 installments)' : 'No'}\n\nCredentials have been sent to the student's email.`)
-        } else if (result.message) {
-          alert(result.message)
+          setApprovalResult({
+            isOpen: true,
+            studentNumber: result.studentNumber,
+            password: result.generatedPassword,
+            paymentPlan: result.paymentPlanCreated,
+            message: result.message,
+          })
         }
       }
     } catch (err: any) {
@@ -324,6 +335,48 @@ export default function ApplicationsPage() {
             </Button>
             <Button onClick={handleStatusUpdate} isLoading={isUpdating}>
               Update Status
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Approval Result Modal */}
+      <Modal
+        isOpen={approvalResult.isOpen}
+        onClose={() => setApprovalResult({ isOpen: false })}
+        title="Student Account Created"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-green-100 rounded-full">
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-center text-gray-600">{approvalResult.message}</p>
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Student Number</span>
+              <span className="font-mono font-bold text-gray-900">{approvalResult.studentNumber}</span>
+            </div>
+            <div className="border-t border-gray-200"></div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Password</span>
+              <span className="font-mono font-bold text-[#8B1A1A]">{approvalResult.password}</span>
+            </div>
+            <div className="border-t border-gray-200"></div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Payment Plan</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${approvalResult.paymentPlan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                {approvalResult.paymentPlan ? '6 Installments Created' : 'No Tuition Fee'}
+              </span>
+            </div>
+          </div>
+          <p className="text-sm text-center text-gray-500">
+            Login credentials have been sent to the student&apos;s email.
+          </p>
+          <div className="flex justify-center">
+            <Button onClick={() => setApprovalResult({ isOpen: false })}>
+              Close
             </Button>
           </div>
         </div>
