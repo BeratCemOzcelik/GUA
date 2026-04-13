@@ -188,6 +188,19 @@ public class PaymentsController : ControllerBase
             if (payment.Status == (int)PaymentStatus.Completed)
                 return BadRequest(ApiResponse<PaymentLinkResponse>.FailureResult("Payment already completed"));
 
+            // Check sequential payment - previous installments must be paid first
+            if (payment.InstallmentNumber > 1)
+            {
+                var allPayments = await _repository.FindAsync(p => p.StudentId == payment.StudentId);
+                var previousUnpaid = allPayments.Any(p =>
+                    p.InstallmentNumber < payment.InstallmentNumber &&
+                    p.Status != (int)PaymentStatus.Completed);
+
+                if (previousUnpaid)
+                    return BadRequest(ApiResponse<PaymentLinkResponse>.FailureResult(
+                        $"Please pay installment {payment.InstallmentNumber - 1} first"));
+            }
+
             // If link already exists and not expired, return it
             if (!string.IsNullOrEmpty(payment.SquarePaymentLinkUrl) && payment.Status == (int)PaymentStatus.Pending)
             {

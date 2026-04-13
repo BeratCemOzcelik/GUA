@@ -69,7 +69,7 @@ export default function ApplicationsPage() {
     if (!statusModal.application || !newStatus) return
     try {
       setIsUpdating(true)
-      await applicationsApi.updateStatus(statusModal.application.id, {
+      const response = await applicationsApi.updateStatus(statusModal.application.id, {
         status: newStatus,
         rejectionReason: newStatus === 'Rejected' ? rejectionReason : undefined,
       })
@@ -77,6 +77,16 @@ export default function ApplicationsPage() {
       setNewStatus('')
       setRejectionReason('')
       fetchApplications()
+
+      // Show auto-creation result for approved applications
+      if (newStatus === 'Approved' && response.data) {
+        const result = response.data
+        if (result.studentCreated) {
+          alert(`Student account created!\n\nStudent Number: ${result.studentNumber}\nPassword: ${result.generatedPassword}\nPayment Plan: ${result.paymentPlanCreated ? 'Created (6 installments)' : 'No'}\n\nCredentials have been sent to the student's email.`)
+        } else if (result.message) {
+          alert(result.message)
+        }
+      }
     } catch (err: any) {
       console.error('Failed to update status:', err)
       alert(err.message || 'Failed to update status')

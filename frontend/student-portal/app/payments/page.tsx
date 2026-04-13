@@ -171,7 +171,10 @@ export default function PaymentsPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {summary.payments.map((payment) => (
+            {summary.payments.map((payment) => {
+              const nextPayable = summary.payments.find(p => p.status === 'Pending')
+              const isNextToPay = nextPayable?.id === payment.id
+              return (
               <tr key={payment.id} className={isOverdue(payment.dueDate, payment.status) ? 'bg-red-50' : ''}>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">
                   {payment.installmentNumber}/{payment.totalInstallments}
@@ -197,7 +200,7 @@ export default function PaymentsPage() {
                     : '-'}
                 </td>
                 <td className="px-6 py-4">
-                  {payment.status === 'Pending' && (
+                  {payment.status === 'Pending' && isNextToPay && (
                     <div className="flex gap-2">
                       <button
                         onClick={() => handlePay(payment.id)}
@@ -216,12 +219,16 @@ export default function PaymentsPage() {
                       )}
                     </div>
                   )}
+                  {payment.status === 'Pending' && !isNextToPay && (
+                    <span className="text-gray-400 text-sm">Locked</span>
+                  )}
                   {payment.status === 'Completed' && (
                     <span className="text-green-600 text-sm">&#10003; Paid</span>
                   )}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

@@ -1,3 +1,4 @@
+using GUA.Core.Entities;
 using GUA.Core.Interfaces;
 using GUA.Shared.DTOs.Common;
 using GUA.Shared.Enums;
@@ -15,17 +16,29 @@ public class ApplicationsController : ControllerBase
 {
     private readonly IRepository<ApplicationEntity> _applicationRepository;
     private readonly IRepository<ProgramEntity> _programRepository;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<UserRole> _userRoleRepository;
+    private readonly IRepository<StudentProfile> _studentRepository;
+    private readonly IRepository<Payment> _paymentRepository;
     private readonly IEmailService _emailService;
     private readonly ILogger<ApplicationsController> _logger;
 
     public ApplicationsController(
         IRepository<ApplicationEntity> applicationRepository,
         IRepository<ProgramEntity> programRepository,
+        IRepository<User> userRepository,
+        IRepository<UserRole> userRoleRepository,
+        IRepository<StudentProfile> studentRepository,
+        IRepository<Payment> paymentRepository,
         IEmailService emailService,
         ILogger<ApplicationsController> logger)
     {
         _applicationRepository = applicationRepository;
         _programRepository = programRepository;
+        _userRepository = userRepository;
+        _userRoleRepository = userRoleRepository;
+        _studentRepository = studentRepository;
+        _paymentRepository = paymentRepository;
         _emailService = emailService;
         _logger = logger;
     }
@@ -130,16 +143,16 @@ public class ApplicationsController : ControllerBase
     // PUT api/Applications/{id}/status - Admin: update application status
     [HttpPut("{id}/status")]
     [Authorize(Roles = "Admin,SuperAdmin")]
-    public async Task<ActionResult<ApiResponse<bool>>> UpdateStatus(int id, [FromBody] UpdateApplicationStatusRequest request)
+    public async Task<ActionResult<ApiResponse<ApplicationApprovalResult>>> UpdateStatus(int id, [FromBody] UpdateApplicationStatusRequest request)
     {
         try
         {
             var application = await _applicationRepository.GetByIdAsync(id);
             if (application == null)
-                return NotFound(ApiResponse<bool>.FailureResult("Application not found"));
+                return NotFound(ApiResponse<ApplicationApprovalResult>.FailureResult("Application not found"));
 
             if (!Enum.TryParse<ApplicationStatus>(request.Status, out var status))
-                return BadRequest(ApiResponse<bool>.FailureResult("Invalid status"));
+                return BadRequest(ApiResponse<ApplicationApprovalResult>.FailureResult("Invalid status"));
 
             application.Status = status;
             application.ReviewedAt = DateTime.UtcNow;
@@ -151,13 +164,155 @@ public class ApplicationsController : ControllerBase
                 application.ReviewedByUserId = userId;
 
             await _applicationRepository.UpdateAsync(application);
-            return Ok(ApiResponse<bool>.SuccessResult(true, "Application status updated"));
+
+            var result = new ApplicationApprovalResult { StatusUpdated = true };
+
+            // If approved, auto-create user + student profile + payment plan
+            if (status == ApplicationStatus.Approved)
+            {
+                try
+                {
+                    // Check if user already exists with this email
+                    var existingUsers = await _userRepository.FindAsync(u => u.Email == application.ApplicantEmail);
+                    if (existingUsers.Any())
+                    {
+                        result.Message = "Status updated. User already exists with this email, skipped auto-creation.";
+                        return Ok(ApiResponse<ApplicationApprovalResult>.SuccessResult(result));
+                    }
+
+                    // 1. Generate password
+                    var password = GeneratePassword();
+
+                    // 2. Create User
+                    var newUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        Email = application.ApplicantEmail,
+                        FirstName = application.ApplicantFirstName,
+                        LastName = application.ApplicantLastName,
+                        PhoneNumber = application.PhoneNumber,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _userRepository.AddAsync(newUser);
+
+                    // 3. Assign Student role (RoleId = 4)
+                    var userRole = new UserRole
+                    {
+                        UserId = newUser.Id,
+                        RoleId = 4, // Student
+                        AssignedAt = DateTime.UtcNow
+                    };
+                    await _userRoleRepository.AddAsync(userRole);
+
+                    // 4. Create Student Profile
+                    var studentNumber = await GenerateStudentNumber();
+                    var program = await _programRepository.GetByIdAsync(application.ProgramId);
+
+                    var studentProfile = new StudentProfile
+                    {
+                        UserId = newUser.Id,
+                        StudentNumber = studentNumber,
+                        ProgramId = application.ProgramId,
+                        EnrollmentDate = DateTime.UtcNow,
+                        ExpectedGraduationDate = DateTime.UtcNow.AddYears(program?.DurationYears ?? 4),
+                        CurrentGPA = 0.0m,
+                        TotalCreditsEarned = 0,
+                        AcademicStatus = AcademicStatus.Active,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    var createdStudent = await _studentRepository.AddAsync(studentProfile);
+
+                    // 5. Create 6 installment payments if program has tuition fee
+                    if (program?.TuitionFee != null && program.TuitionFee > 0)
+                    {
+                        var totalAmount = program.TuitionFee.Value;
+                        var installmentAmount = Math.Round(totalAmount / 6, 2);
+                        var lastInstallmentAmount = totalAmount - (installmentAmount * 5);
+
+                        for (int i = 1; i <= 6; i++)
+                        {
+                            var payment = new Payment
+                            {
+                                StudentId = createdStudent.Id,
+                                Amount = i == 6 ? lastInstallmentAmount : installmentAmount,
+                                Currency = "USD",
+                                Description = $"Tuition Payment - Installment {i}/6",
+                                Type = (int)PaymentType.Tuition,
+                                Status = (int)PaymentStatus.Pending,
+                                InstallmentNumber = i,
+                                TotalInstallments = 6,
+                                DueDate = DateTime.UtcNow.AddMonths(i - 1)
+                            };
+                            await _paymentRepository.AddAsync(payment);
+                        }
+                    }
+
+                    // 6. Send welcome email with credentials
+                    _ = _emailService.SendWelcomeEmailAsync(
+                        application.ApplicantEmail,
+                        $"{application.ApplicantFirstName} {application.ApplicantLastName}",
+                        password,
+                        studentNumber);
+
+                    result.StudentCreated = true;
+                    result.StudentNumber = studentNumber;
+                    result.GeneratedPassword = password;
+                    result.PaymentPlanCreated = program?.TuitionFee > 0;
+                    result.Message = $"Application approved. Student account created: {studentNumber}";
+
+                    _logger.LogInformation("Auto-created student {StudentNumber} for application {AppId}", studentNumber, id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error auto-creating student for application {AppId}", id);
+                    result.Message = $"Status updated but auto-creation failed: {ex.Message}";
+                }
+            }
+            else
+            {
+                result.Message = "Application status updated";
+            }
+
+            return Ok(ApiResponse<ApplicationApprovalResult>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating application {Id}", id);
-            return StatusCode(500, ApiResponse<bool>.FailureResult("An error occurred"));
+            return StatusCode(500, ApiResponse<ApplicationApprovalResult>.FailureResult("An error occurred"));
         }
+    }
+
+    private async Task<string> GenerateStudentNumber()
+    {
+        var year = DateTime.UtcNow.Year;
+        var students = await _studentRepository.GetAllAsync();
+        var yearStudents = students
+            .Where(s => s.StudentNumber.StartsWith($"GUA-{year}"))
+            .OrderByDescending(s => s.StudentNumber)
+            .ToList();
+
+        int nextNumber = 1;
+        if (yearStudents.Any())
+        {
+            var lastNumber = yearStudents.First().StudentNumber;
+            var numberPart = lastNumber.Substring(lastNumber.Length - 4);
+            if (int.TryParse(numberPart, out var num))
+                nextNumber = num + 1;
+        }
+
+        return $"GUA-{year}{nextNumber:D4}";
+    }
+
+    private static string GeneratePassword()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+        var random = new Random();
+        var password = new char[10];
+        for (int i = 0; i < password.Length; i++)
+            password[i] = chars[random.Next(chars.Length)];
+        return new string(password);
     }
 }
 
@@ -198,4 +353,14 @@ public class UpdateApplicationStatusRequest
 {
     public string Status { get; set; } = string.Empty;
     public string? RejectionReason { get; set; }
+}
+
+public class ApplicationApprovalResult
+{
+    public bool StatusUpdated { get; set; }
+    public bool StudentCreated { get; set; }
+    public string? StudentNumber { get; set; }
+    public string? GeneratedPassword { get; set; }
+    public bool PaymentPlanCreated { get; set; }
+    public string? Message { get; set; }
 }

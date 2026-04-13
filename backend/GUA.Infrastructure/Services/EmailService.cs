@@ -152,4 +152,42 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(fromEmail, replySubject, replyBody);
     }
+
+    public async Task SendWelcomeEmailAsync(string toEmail, string studentName, string password, string studentNumber)
+    {
+        var subject = "Welcome to Global University America - Your Account is Ready!";
+        var htmlBody = $@"
+<!DOCTYPE html>
+<html>
+<body style=""font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;"">
+    <div style=""background-color: #8B1A1A; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;"">
+        <h1 style=""color: #D4AF37; margin: 0; font-size: 24px;"">Welcome to GUA!</h1>
+    </div>
+    <div style=""background-color: #f9f9f9; padding: 30px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px;"">
+        <h2 style=""color: #333;"">Dear {studentName},</h2>
+        <p style=""color: #555; line-height: 1.6;"">
+            Congratulations! Your application has been <strong style=""color: #2E7D32;"">approved</strong>.
+            Your student account has been created.
+        </p>
+        <div style=""background-color: #fff; padding: 20px; border-radius: 8px; border: 2px solid #8B1A1A; margin: 20px 0;"">
+            <h3 style=""color: #8B1A1A; margin-top: 0;"">Your Login Credentials</h3>
+            <table style=""width: 100%;"">
+                <tr><td style=""padding: 8px; color: #888;"">Student Number:</td><td style=""padding: 8px; font-weight: bold; color: #333;"">{studentNumber}</td></tr>
+                <tr><td style=""padding: 8px; color: #888;"">Email:</td><td style=""padding: 8px; font-weight: bold; color: #333;"">{toEmail}</td></tr>
+                <tr><td style=""padding: 8px; color: #888;"">Password:</td><td style=""padding: 8px; font-weight: bold; color: #8B1A1A; font-size: 16px;"">{password}</td></tr>
+            </table>
+        </div>
+        <p style=""color: #d32f2f; font-weight: bold;"">Please change your password after your first login.</p>
+        <p style=""color: #555; line-height: 1.6;"">
+            You can access the Student Portal to view your courses, grades, and payment plan.
+        </p>
+        <p style=""color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 15px;"">
+            This is an automated message from Global University America.
+        </p>
+    </div>
+</body>
+</html>";
+
+        await SendEmailAsync(toEmail, subject, htmlBody);
+    }
 }
