@@ -49,6 +49,9 @@ dist/
 # SQL scripts
 *.sql
 
+# Infrastructure docs (contains credentials)
+INFRASTRUCTURE.md
+
 # IDE
 .idea/
 *.swp
