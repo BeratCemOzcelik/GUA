@@ -161,6 +161,75 @@ export const coursesApi = {
   },
 }
 
+// Curriculum API
+export interface CurriculumCourse {
+  id: number
+  programId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  courseCredits: number
+  courseDescription: string | null
+  yearLevel: number
+  isRequired: boolean
+  sortOrder: number
+}
+
+export interface CurriculumYear {
+  yearLevel: number
+  totalCredits: number
+  courses: CurriculumCourse[]
+}
+
+export interface CurriculumDto {
+  programId: number
+  programName: string
+  durationYears: number
+  totalCreditsRequired: number
+  assignedCredits: number
+  years: CurriculumYear[]
+}
+
+export interface AddCurriculumCoursePayload {
+  courseId: number
+  yearLevel: number
+  isRequired: boolean
+  sortOrder: number
+}
+
+export interface UpdateCurriculumCoursePayload {
+  yearLevel: number
+  isRequired: boolean
+  sortOrder: number
+}
+
+export interface BulkAddCurriculumPayload {
+  courses: AddCurriculumCoursePayload[]
+}
+
+export const curriculumApi = {
+  get: async (programId: number) => {
+    const response = await api.get(`/programs/${programId}/curriculum`)
+    return response.data
+  },
+  add: async (programId: number, payload: AddCurriculumCoursePayload) => {
+    const response = await api.post(`/programs/${programId}/curriculum`, payload)
+    return response.data
+  },
+  bulkAdd: async (programId: number, payload: BulkAddCurriculumPayload) => {
+    const response = await api.post(`/programs/${programId}/curriculum/bulk`, payload)
+    return response.data
+  },
+  update: async (programId: number, pcId: number, payload: UpdateCurriculumCoursePayload) => {
+    const response = await api.put(`/programs/${programId}/curriculum/${pcId}`, payload)
+    return response.data
+  },
+  remove: async (programId: number, pcId: number) => {
+    const response = await api.delete(`/programs/${programId}/curriculum/${pcId}`)
+    return response.data
+  },
+}
+
 // Blog Posts API
 export const blogApi = {
   getAll: async () => {

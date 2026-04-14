@@ -177,6 +177,11 @@ export default function ProgramsPage() {
                             ✏️ Edit
                           </Button>
                         </Link>
+                        <Link href={`/programs/${program.id}/curriculum`}>
+                          <Button variant="secondary" size="sm">
+                            📚 Curriculum
+                          </Button>
+                        </Link>
                         <Button
                           variant="danger"
                           size="sm"

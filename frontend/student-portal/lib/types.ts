@@ -179,6 +179,35 @@ export interface CourseMaterial {
   createdAt: string
 }
 
+// Curriculum (Program Plan)
+export interface CurriculumCourse {
+  id: number
+  programId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  courseCredits: number
+  courseDescription?: string | null
+  yearLevel: number
+  isRequired: boolean
+  sortOrder: number
+}
+
+export interface CurriculumYear {
+  yearLevel: number
+  courses: CurriculumCourse[]
+  totalCredits: number
+}
+
+export interface Curriculum {
+  programId: number
+  programName: string
+  durationYears: number
+  totalCreditsRequired: number
+  assignedCredits: number
+  years: CurriculumYear[]
+}
+
 // Assignment Submission
 export interface AssignmentSubmission {
   id: number

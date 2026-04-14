@@ -61,6 +61,14 @@ export const coursesApi = {
   },
 }
 
+// Curriculum API
+export const curriculumApi = {
+  get: async (programId: number) => {
+    const response = await api.get(`/Programs/${programId}/curriculum`)
+    return response.data
+  },
+}
+
 // Faculty Profiles API
 export const facultyApi = {
   getAll: async () => {

@@ -221,6 +221,14 @@ export const assignmentSubmissionsApi = {
   },
 }
 
+// Curriculum API
+export const curriculumApi = {
+  get: async (programId: number) => {
+    const response = await api.get(`/programs/${programId}/curriculum`)
+    return response.data
+  },
+}
+
 // Payments API
 export const paymentsApi = {
   getMyPayments: async () => {
