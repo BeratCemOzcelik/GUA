@@ -130,7 +130,7 @@ export default function DashboardPage() {
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
             <p className="text-gray-600">You are not currently enrolled in any courses.</p>
             <p className="text-sm text-gray-500 mt-2">
-              Visit the <a href="/courses" className="text-primary hover:underline">Courses</a> page to enroll.
+              Visit your <a href="/program-plan" className="text-primary hover:underline">Program Plan</a> to start a course.
             </p>
           </div>
         ) : (
@@ -163,13 +163,13 @@ export default function DashboardPage() {
         <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Links</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a
-            href="/courses"
+            href="/program-plan"
             className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <span className="text-2xl">📚</span>
+            <span className="text-2xl">🗺️</span>
             <div>
-              <p className="font-semibold text-gray-900">Browse Courses</p>
-              <p className="text-xs text-gray-600">Enroll in new courses</p>
+              <p className="font-semibold text-gray-900">Program Plan</p>
+              <p className="text-xs text-gray-600">Start a course or check progress</p>
             </div>
           </a>
           <a

@@ -122,11 +122,27 @@ async function ensureCurriculum(programId, courses) {
 
 async function ensureAcademicTerm() {
   const list = await api('GET', '/academicterms');
-  const existing = (list.data || list).find(t => t.code === ACADEMIC_TERM.code);
-  if (existing) { log(`Term '${existing.name}' exists (id=${existing.id})`); return existing; }
-  log(`Creating term '${ACADEMIC_TERM.name}'`);
-  const created = await api('POST', '/academicterms', ACADEMIC_TERM);
-  return created.data;
+  let term = (list.data || list).find(t => t.code === ACADEMIC_TERM.code);
+  if (!term) {
+    log(`Creating term '${ACADEMIC_TERM.name}'`);
+    const created = await api('POST', '/academicterms', ACADEMIC_TERM);
+    term = created.data;
+  } else {
+    log(`Term '${term.name}' exists (id=${term.id})`);
+  }
+  // Activate — CreateAcademicTermRequest has no IsActive field, so force it via PUT
+  if (!term.isActive) {
+    log('  activating term');
+    await api('PUT', `/academicterms/${term.id}`, {
+      name: term.name, code: term.code,
+      startDate: term.startDate, endDate: term.endDate,
+      isActive: true,
+      enrollmentStartDate: term.enrollmentStartDate,
+      enrollmentEndDate: term.enrollmentEndDate
+    });
+    term.isActive = true;
+  }
+  return term;
 }
 
 async function ensureFacultyUser() {
