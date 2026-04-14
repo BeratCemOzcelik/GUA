@@ -17,4 +17,5 @@ public class Course : BaseEntity
     public virtual ICollection<CoursePrerequisite> DependentCourses { get; set; } = new List<CoursePrerequisite>();
     public virtual ICollection<CourseOffering> CourseOfferings { get; set; } = new List<CourseOffering>();
     public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
+    public virtual ICollection<ProgramCourse> ProgramCourses { get; set; } = new List<ProgramCourse>();
 }

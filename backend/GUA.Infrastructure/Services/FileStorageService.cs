@@ -6,7 +6,7 @@ public interface IFileStorageService
 {
     Task<string> UploadFileAsync(IFormFile file, string folder = "general");
     Task<bool> DeleteFileAsync(string fileUrl);
-    bool IsValidFile(IFormFile file, long maxSizeInBytes = 10485760); // 10MB default
+    bool IsValidFile(IFormFile file, long maxSizeInBytes = 524288000); // 10MB default
     string GetFileExtension(IFormFile file);
 }
 
@@ -98,7 +98,7 @@ public class FileStorageService : IFileStorageService
         }
     }
 
-    public bool IsValidFile(IFormFile file, long maxSizeInBytes = 10485760)
+    public bool IsValidFile(IFormFile file, long maxSizeInBytes = 524288000)
     {
         if (file == null || file.Length == 0)
         {

@@ -19,4 +19,5 @@ public class Program : BaseEntity
     public virtual Department Department { get; set; } = null!;
     public virtual ICollection<StudentProfile> StudentProfiles { get; set; } = new List<StudentProfile>();
     public virtual ICollection<Application> Applications { get; set; } = new List<Application>();
+    public virtual ICollection<ProgramCourse> ProgramCourses { get; set; } = new List<ProgramCourse>();
 }

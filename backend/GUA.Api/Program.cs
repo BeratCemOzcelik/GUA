@@ -11,6 +11,19 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Kestrel: allow large file uploads (500 MB)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 524288000; // 500 MB
+});
+
+// FormOptions: allow large multipart bodies
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 524288000; // 500 MB
+    options.ValueLengthLimit = int.MaxValue;
+});
+
 // Add services to the container
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

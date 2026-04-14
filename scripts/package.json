@@ -1,0 +1,13 @@
+{
+  "name": "gua-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "seed:psychology": "node seed-psychology.js",
+    "seed:psychology:skip-upload": "node seed-psychology.js --skip-upload"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  }
+}

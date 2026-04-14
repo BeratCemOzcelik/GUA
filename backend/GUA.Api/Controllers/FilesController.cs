@@ -25,6 +25,8 @@ public class FilesController : ControllerBase
     /// Upload a file (image, document, etc.)
     /// </summary>
     [HttpPost("upload")]
+    [RequestSizeLimit(524288000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 524288000)]
     public async Task<ActionResult<ApiResponse<FileUploadResponseDto>>> UploadFile([FromForm] FileUploadRequest request)
     {
         try
@@ -38,7 +40,7 @@ public class FilesController : ControllerBase
             if (!_fileStorageService.IsValidFile(request.File))
             {
                 return BadRequest(ApiResponse<FileUploadResponseDto>.FailureResult(
-                    "Invalid file. Max size: 10MB. Allowed types: jpg, png, pdf, doc, docx, ppt, pptx"));
+                    "Invalid file. Max size: 500MB. Allowed types: jpg, png, pdf, doc, docx, ppt, pptx"));
             }
 
             // Upload file
@@ -59,6 +61,46 @@ public class FilesController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, ApiResponse<FileUploadResponseDto>.FailureResult($"Upload failed: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Bulk upload multiple files in a single request
+    /// </summary>
+    [HttpPost("upload-bulk")]
+    [RequestSizeLimit(524288000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 524288000)]
+    public async Task<ActionResult<ApiResponse<List<FileUploadResponseDto>>>> UploadBulk(
+        [FromForm] IFormFileCollection files,
+        [FromForm] string? folder)
+    {
+        try
+        {
+            if (files == null || files.Count == 0)
+                return BadRequest(ApiResponse<List<FileUploadResponseDto>>.FailureResult("No files provided"));
+
+            var results = new List<FileUploadResponseDto>();
+            var folderName = string.IsNullOrWhiteSpace(folder) ? "general" : folder;
+
+            foreach (var file in files)
+            {
+                if (!_fileStorageService.IsValidFile(file)) continue;
+                var url = await _fileStorageService.UploadFileAsync(file, folderName);
+                results.Add(new FileUploadResponseDto
+                {
+                    FileName = file.FileName,
+                    FileUrl = url,
+                    FileSize = file.Length,
+                    ContentType = file.ContentType,
+                    UploadedAt = DateTime.UtcNow
+                });
+            }
+
+            return Ok(ApiResponse<List<FileUploadResponseDto>>.SuccessResult(results, $"Uploaded {results.Count} files"));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<FileUploadResponseDto>>.FailureResult($"Bulk upload failed: {ex.Message}"));
         }
     }
 
@@ -99,8 +141,8 @@ public class FilesController : ControllerBase
     {
         var config = new FileUploadConfigDto
         {
-            MaxSizeInBytes = 10485760, // 10MB
-            MaxSizeLabel = "10 MB",
+            MaxSizeInBytes = 524288000, // 500MB
+            MaxSizeLabel = "500 MB",
             AllowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx", ".ppt", ".pptx" },
             AllowedMimeTypes = new[]
             {

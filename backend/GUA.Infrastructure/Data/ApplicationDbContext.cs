@@ -21,6 +21,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<CoursePrerequisite> CoursePrerequisites { get; set; }
     public DbSet<AcademicTerm> AcademicTerms { get; set; }
     public DbSet<CourseOffering> CourseOfferings { get; set; }
+    public DbSet<ProgramCourse> ProgramCourses { get; set; }
 
     // Student Records
     public DbSet<StudentProfile> StudentProfiles { get; set; }
@@ -125,6 +126,21 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Department)
                 .WithMany(d => d.Courses)
                 .HasForeignKey(e => e.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ProgramCourse (junction between Program and Course — curriculum)
+        modelBuilder.Entity<ProgramCourse>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.ProgramId, e.CourseId }).IsUnique();
+            entity.HasOne(e => e.Program)
+                .WithMany(p => p.ProgramCourses)
+                .HasForeignKey(e => e.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Course)
+                .WithMany(c => c.ProgramCourses)
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
