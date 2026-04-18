@@ -20,6 +20,10 @@ COPY --from=build /app/publish .
 # Create uploads directory
 RUN mkdir -p /app/wwwroot/uploads
 
+# Persistent storage for user uploads (course materials, blog covers, gallery, faculty photos, etc.)
+# Coolify/docker-compose must mount a host/named volume here, otherwise uploads are wiped on every redeploy.
+VOLUME ["/app/wwwroot/uploads"]
+
 ENV ASPNETCORE_URLS=http://+:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
 
