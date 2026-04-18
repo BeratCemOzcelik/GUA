@@ -43,9 +43,9 @@ export default function CourseOfferingMaterialsPage() {
 
       // Get enrollment to get course info
       console.log('Fetching enrollments...')
-      const enrollmentsRes = await enrollmentsApi.getMyEnrollments()
+      const enrollmentsRes = await enrollmentsApi.getMyEnrollments({ pageSize: 1000 })
       console.log('Enrollments:', enrollmentsRes.data)
-      const enrollment = enrollmentsRes.data.find((e: any) => e.courseOfferingId === courseOfferingId)
+      const enrollment = (enrollmentsRes.data?.items || []).find((e: any) => e.courseOfferingId === courseOfferingId)
       console.log('Found enrollment:', enrollment)
 
       if (!enrollment) {

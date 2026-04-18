@@ -75,7 +75,7 @@ export default function ProgramPlanPage() {
       // Load curriculum, enrollments and available offerings in parallel
       const [curriculumRes, enrollmentsRes, availableRes] = await Promise.all([
         curriculumApi.get(loadedProfile.programId),
-        enrollmentsApi.getMyEnrollments(),
+        enrollmentsApi.getMyEnrollments({ pageSize: 1000 }),
         enrollmentsApi.getAvailable(undefined, true).catch(() => ({ data: [] })),
       ])
 
@@ -99,7 +99,7 @@ export default function ProgramPlanPage() {
 
       // Build a courseId → progress map from enrollments.
       // Enrollments response (my-enrollments) comes back flattened with courseCode/courseName/etc.
-      const enrollmentsList: any[] = enrollmentsRes?.data || []
+      const enrollmentsList: any[] = enrollmentsRes?.data?.items || []
 
       // Map curriculum course code → courseId so we can join enrollment (which gives code)
       const codeToCourseId: Record<string, number> = {}

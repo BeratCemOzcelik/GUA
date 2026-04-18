@@ -5,17 +5,24 @@ import { enrollmentsApi, academicTermsApi } from '@/lib/api'
 import { Enrollment, AcademicTerm } from '@/lib/types'
 import CourseCard from '@/components/CourseCard'
 import ConfirmModal from '@/components/ConfirmModal'
+import Pagination from '@/components/Pagination'
+import SearchBar from '@/components/SearchBar'
 
 export default function MyCoursesPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [terms, setTerms] = useState<AcademicTerm[]>([])
+
   const [selectedTerm, setSelectedTerm] = useState<number | undefined>()
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [droppingEnrollmentId, setDroppingEnrollmentId] = useState<number | null>(null)
 
-  // Modal states
   const [confirmDropModal, setConfirmDropModal] = useState<{
     isOpen: boolean
     enrollmentId: number | null
@@ -35,14 +42,17 @@ export default function MyCoursesPage() {
 
   useEffect(() => {
     loadEnrollments()
-  }, [selectedTerm, selectedStatus])
+  }, [selectedTerm, selectedStatus, search, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedTerm, selectedStatus, search, pageSize])
 
   const loadTerms = async () => {
     try {
       const response = await academicTermsApi.getAll()
       setTerms(response.data)
 
-      // Set current term as default
       const currentTerm = response.data.find((t: AcademicTerm) => t.isCurrent)
       if (currentTerm) {
         setSelectedTerm(currentTerm.id)
@@ -57,11 +67,18 @@ export default function MyCoursesPage() {
       setIsLoading(true)
       setError('')
 
-      const statusFilter = selectedStatus === 'all' ? undefined : selectedStatus
-      const response = await enrollmentsApi.getMyEnrollments(selectedTerm, statusFilter)
+      const response = await enrollmentsApi.getMyEnrollments({
+        termId: selectedTerm,
+        status: selectedStatus === 'all' ? undefined : selectedStatus,
+        search: search || undefined,
+        page,
+        pageSize,
+      })
 
-      // Map backend data to frontend format
-      const mappedEnrollments = response.data.map((enrollment: any) => ({
+      const data = response.data
+      const items = data?.items || []
+
+      const mappedEnrollments = items.map((enrollment: any) => ({
         ...enrollment,
         courseOffering: {
           id: enrollment.courseOfferingId,
@@ -73,14 +90,13 @@ export default function MyCoursesPage() {
           schedule: enrollment.schedule,
           location: enrollment.location,
           credits: enrollment.credits,
-          // Don't include capacity and enrolledCount for enrolled courses
-        }
+        },
       }))
 
       setEnrollments(mappedEnrollments)
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load enrollments')
-      console.error('Enrollments error:', err)
     } finally {
       setIsLoading(false)
     }
@@ -104,18 +120,17 @@ export default function MyCoursesPage() {
         isOpen: true,
         title: 'Success',
         message: `Successfully dropped ${courseName}!`,
-        type: 'success'
+        type: 'success',
       })
-      loadEnrollments() // Reload enrollments
+      loadEnrollments()
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to drop course'
       setAlertModal({
         isOpen: true,
         title: 'Error',
         message: errorMessage,
-        type: 'error'
+        type: 'error',
       })
-      console.error('Drop course error:', err)
     } finally {
       setDroppingEnrollmentId(null)
     }
@@ -146,16 +161,16 @@ export default function MyCoursesPage() {
     if (!grade) return null
 
     const gradeColors: { [key: string]: string } = {
-      'A': 'bg-green-100 text-green-700',
+      A: 'bg-green-100 text-green-700',
       'A-': 'bg-green-100 text-green-700',
       'B+': 'bg-blue-100 text-blue-700',
-      'B': 'bg-blue-100 text-blue-700',
+      B: 'bg-blue-100 text-blue-700',
       'B-': 'bg-blue-100 text-blue-700',
       'C+': 'bg-amber-100 text-amber-700',
-      'C': 'bg-amber-100 text-amber-700',
+      C: 'bg-amber-100 text-amber-700',
       'C-': 'bg-amber-100 text-amber-700',
-      'D': 'bg-orange-100 text-orange-700',
-      'F': 'bg-red-100 text-red-700',
+      D: 'bg-orange-100 text-orange-700',
+      F: 'bg-red-100 text-red-700',
     }
 
     return gradeColors[grade] || 'bg-gray-100 text-gray-700'
@@ -170,12 +185,15 @@ export default function MyCoursesPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by course code or name..."
+        />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Academic Term
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Academic Term</label>
             <select
               value={selectedTerm || ''}
               onChange={(e) => setSelectedTerm(e.target.value ? parseInt(e.target.value) : undefined)}
@@ -191,9 +209,7 @@ export default function MyCoursesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -208,90 +224,100 @@ export default function MyCoursesPage() {
         </div>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">{error}</div>
       )}
 
-      {/* Loading State */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      ) : enrollments.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <p className="text-gray-600">No courses found for the selected filters.</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Visit your <a href="/program-plan" className="text-primary hover:underline">Program Plan</a> to start a course.
-          </p>
-        </div>
-      ) : (
-        <div>
-          <div className="mb-4">
-            <p className="text-sm text-gray-600">
-              Showing {enrollments.length} course{enrollments.length !== 1 ? 's' : ''}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : enrollments.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-600">No courses found for the selected filters.</p>
+            <p className="text-sm text-gray-500 mt-2">
+              Visit your{' '}
+              <a href="/program-plan" className="text-primary hover:underline">
+                Program Plan
+              </a>{' '}
+              to start a course.
             </p>
           </div>
+        ) : (
+          <>
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">
+                  Showing {enrollments.length} of {totalCount} course{totalCount !== 1 ? 's' : ''}
+                </p>
+              </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {enrollments.map((enrollment) => {
-              const isDropping = droppingEnrollmentId === enrollment.id
-              const canDrop = enrollment.status === 'Enrolled'
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {enrollments.map((enrollment) => {
+                  const isDropping = droppingEnrollmentId === enrollment.id
+                  const canDrop = enrollment.status === 'Enrolled'
 
-              return (
-                <CourseCard
-                  key={enrollment.id}
-                  course={enrollment.courseOffering}
-                  action={
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadge(enrollment.status)}`}>
-                          {enrollment.status}
-                        </span>
-                        {enrollment.finalGrade && (
-                          <span className={`text-sm px-3 py-1 rounded-full font-bold ${getGradeBadge(enrollment.finalGrade)}`}>
-                            Grade: {enrollment.finalGrade}
-                          </span>
-                        )}
-                      </div>
+                  return (
+                    <CourseCard
+                      key={enrollment.id}
+                      course={enrollment.courseOffering}
+                      action={
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadge(enrollment.status)}`}>
+                              {enrollment.status}
+                            </span>
+                            {enrollment.finalGrade && (
+                              <span className={`text-sm px-3 py-1 rounded-full font-bold ${getGradeBadge(enrollment.finalGrade)}`}>
+                                Grade: {enrollment.finalGrade}
+                              </span>
+                            )}
+                          </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <a
-                            href={`/materials/${enrollment.courseOffering.id}`}
-                            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center"
-                          >
-                            📚 Materials
-                          </a>
-                          <a
-                            href={`/grades/${enrollment.id}`}
-                            className="flex-1 py-2 px-4 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors text-center"
-                          >
-                            📊 Grades
-                          </a>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <a
+                                href={`/materials/${enrollment.courseOffering.id}`}
+                                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center"
+                              >
+                                📚 Materials
+                              </a>
+                              <a
+                                href={`/grades/${enrollment.id}`}
+                                className="flex-1 py-2 px-4 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-colors text-center"
+                              >
+                                📊 Grades
+                              </a>
+                            </div>
+                            {canDrop && (
+                              <button
+                                onClick={() => handleDropCourse(enrollment.id, enrollment.courseOffering.courseName)}
+                                disabled={isDropping}
+                                className="w-full py-2 px-4 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                              >
+                                {isDropping ? 'Dropping...' : 'Drop Course'}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        {canDrop && (
-                          <button
-                            onClick={() => handleDropCourse(enrollment.id, enrollment.courseOffering.courseName)}
-                            disabled={isDropping}
-                            className="w-full py-2 px-4 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
-                          >
-                            {isDropping ? 'Dropping...' : 'Drop Course'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  }
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
+                      }
+                    />
+                  )
+                })}
+              </div>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
+        )}
+      </div>
 
-      {/* Confirm Drop Course Modal */}
       <ConfirmModal
         isOpen={confirmDropModal.isOpen}
         title="Drop Course"
@@ -303,7 +329,6 @@ export default function MyCoursesPage() {
         type="confirm"
       />
 
-      {/* Success/Error Alert Modal */}
       <ConfirmModal
         isOpen={alertModal.isOpen}
         title={alertModal.title}

@@ -171,48 +171,84 @@ public class EnrollmentsController : ControllerBase
 
     [HttpGet("my-enrollments")]
     [Authorize(Roles = "Student")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<EnrollmentDto>>>> GetMyEnrollments(
-        [FromQuery] string? status = null)
+    public async Task<ActionResult<ApiResponse<PagedResult<EnrollmentDto>>>> GetMyEnrollments(
+        [FromQuery] string? status = null,
+        [FromQuery] int? termId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            // Extract user ID from JWT claims
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
+
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
             {
-                return Unauthorized(ApiResponse<IEnumerable<EnrollmentDto>>.FailureResult("Invalid user token"));
+                return Unauthorized(ApiResponse<PagedResult<EnrollmentDto>>.FailureResult("Invalid user token"));
             }
 
-            // Find student profile for this user
             var students = await _studentRepository.GetAllAsync();
             var student = students.FirstOrDefault(s => s.UserId == userId);
 
             if (student == null)
             {
-                return NotFound(ApiResponse<IEnumerable<EnrollmentDto>>.FailureResult("Student profile not found for this user"));
+                return NotFound(ApiResponse<PagedResult<EnrollmentDto>>.FailureResult("Student profile not found for this user"));
             }
 
-            // Get enrollments for this student
-            var enrollments = await _repository.GetAllAsync();
-            enrollments = enrollments.Where(e => e.StudentId == student.Id).ToList();
+            var enrollments = (await _repository.GetAllAsync())
+                .Where(e => e.StudentId == student.Id)
+                .ToList();
 
-            // Filter by status if provided
-            if (!string.IsNullOrWhiteSpace(status))
+            if (!string.IsNullOrWhiteSpace(status)
+                && Enum.TryParse<EnrollmentStatus>(status, true, out var statusEnum))
             {
-                if (Enum.TryParse<EnrollmentStatus>(status, true, out var statusEnum))
-                {
-                    enrollments = enrollments.Where(e => e.Status == statusEnum).ToList();
-                }
+                enrollments = enrollments.Where(e => e.Status == statusEnum).ToList();
             }
 
-            var dtos = await MapToEnrollmentDtos(enrollments);
+            if (termId.HasValue)
+            {
+                var offeringsForTerm = (await _offeringRepository.GetAllAsync())
+                    .Where(o => o.TermId == termId.Value)
+                    .Select(o => o.Id)
+                    .ToHashSet();
+                enrollments = enrollments.Where(e => offeringsForTerm.Contains(e.CourseOfferingId)).ToList();
+            }
 
-            return Ok(ApiResponse<IEnumerable<EnrollmentDto>>.SuccessResult(dtos));
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                var allOfferings = (await _offeringRepository.GetAllAsync()).ToDictionary(o => o.Id);
+                var allCourses = (await _courseRepository.GetAllAsync()).ToDictionary(c => c.Id);
+                enrollments = enrollments.Where(e =>
+                {
+                    var offering = allOfferings.GetValueOrDefault(e.CourseOfferingId);
+                    if (offering == null) return false;
+                    var course = allCourses.GetValueOrDefault(offering.CourseId);
+                    return (course?.Code ?? "").ToLowerInvariant().Contains(term)
+                        || (course?.Name ?? "").ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var totalCount = enrollments.Count;
+
+            var pagedEnrollments = enrollments
+                .OrderByDescending(e => e.EnrollmentDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var dtos = await MapToEnrollmentDtos(pagedEnrollments);
+
+            var result = PagedResult<EnrollmentDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<EnrollmentDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving current user's enrollments");
-            return StatusCode(500, ApiResponse<IEnumerable<EnrollmentDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<EnrollmentDto>>.FailureResult(
                 "An error occurred while retrieving your enrollments"));
         }
     }
@@ -669,37 +705,38 @@ public class EnrollmentsController : ControllerBase
 
     [HttpGet("by-course-offering/{courseOfferingId}/students")]
     [Authorize(Roles = "Faculty,Admin,SuperAdmin")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<EnrolledStudentDto>>>> GetEnrolledStudents(
+    public async Task<ActionResult<ApiResponse<PagedResult<EnrolledStudentDto>>>> GetEnrolledStudents(
         int courseOfferingId,
-        [FromQuery] EnrollmentStatus? status = null)
+        [FromQuery] EnrollmentStatus? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            // Verify course offering exists
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
+
             var offering = await _offeringRepository.GetByIdAsync(courseOfferingId);
             if (offering == null)
             {
-                return NotFound(ApiResponse<IEnumerable<EnrolledStudentDto>>.FailureResult("Course offering not found"));
+                return NotFound(ApiResponse<PagedResult<EnrolledStudentDto>>.FailureResult("Course offering not found"));
             }
 
-            // Get enrollments for this course offering
             var enrollments = (await _repository.GetAllAsync())
                 .Where(e => e.CourseOfferingId == courseOfferingId)
                 .ToList();
 
-            // Filter by status if provided (no filter = show all)
             if (status.HasValue)
-            {
                 enrollments = enrollments.Where(e => e.Status == status.Value).ToList();
-            }
 
-            // Load student profiles and users
-            var studentIds = enrollments.Select(e => e.StudentId).Distinct();
+            var studentIds = enrollments.Select(e => e.StudentId).Distinct().ToList();
             var students = (await _studentRepository.GetAllAsync())
                 .Where(s => studentIds.Contains(s.Id))
                 .ToList();
 
-            var userIds = students.Select(s => s.UserId).Distinct();
+            var userIds = students.Select(s => s.UserId).Distinct().ToList();
             var users = (await _userRepository.GetAllAsync())
                 .Where(u => userIds.Contains(u.Id))
                 .ToList();
@@ -707,42 +744,69 @@ public class EnrollmentsController : ControllerBase
             var studentDict = students.ToDictionary(s => s.Id);
             var userDict = users.ToDictionary(u => u.Id);
 
-            // Get final grades for these enrollments
-            var enrollmentIds = enrollments.Select(e => e.Id).Distinct();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                enrollments = enrollments.Where(e =>
+                {
+                    var student = studentDict.GetValueOrDefault(e.StudentId);
+                    if (student == null) return false;
+                    var user = userDict.GetValueOrDefault(student.UserId);
+                    var fullName = user != null ? $"{user.FirstName} {user.LastName}".ToLowerInvariant() : "";
+                    return fullName.Contains(term)
+                        || (student.StudentNumber ?? "").ToLowerInvariant().Contains(term)
+                        || (user?.Email ?? "").ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var totalCount = enrollments.Count;
+
+            var ordered = enrollments
+                .Select(e =>
+                {
+                    var student = studentDict.GetValueOrDefault(e.StudentId);
+                    var user = student != null ? userDict.GetValueOrDefault(student.UserId) : null;
+                    return new { Enrollment = e, Student = student, User = user };
+                })
+                .OrderBy(x => x.User?.LastName ?? "")
+                .ThenBy(x => x.User?.FirstName ?? "")
+                .ToList();
+
+            var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            var pagedEnrollmentIds = paged.Select(x => x.Enrollment.Id).ToList();
             var finalGrades = (await _finalGradeRepository.GetAllAsync())
-                .Where(fg => enrollmentIds.Contains(fg.EnrollmentId))
+                .Where(fg => pagedEnrollmentIds.Contains(fg.EnrollmentId))
                 .ToList();
             var finalGradeDict = finalGrades.ToDictionary(fg => fg.EnrollmentId);
 
-            var dtos = enrollments.Select(e =>
+            var dtos = paged.Select(x =>
             {
-                var student = studentDict.GetValueOrDefault(e.StudentId);
-                var user = student != null ? userDict.GetValueOrDefault(student.UserId) : null;
-                var finalGrade = finalGradeDict.GetValueOrDefault(e.Id);
-
+                var finalGrade = finalGradeDict.GetValueOrDefault(x.Enrollment.Id);
                 return new EnrolledStudentDto
                 {
-                    EnrollmentId = e.Id,
-                    StudentId = e.StudentId,
-                    StudentNumber = student?.StudentNumber ?? "",
-                    FirstName = user?.FirstName ?? "",
-                    LastName = user?.LastName ?? "",
-                    Email = user?.Email ?? "",
-                    EnrollmentDate = e.EnrollmentDate,
-                    Status = e.Status,
-                    StatusText = e.Status.ToString(),
+                    EnrollmentId = x.Enrollment.Id,
+                    StudentId = x.Enrollment.StudentId,
+                    StudentNumber = x.Student?.StudentNumber ?? "",
+                    FirstName = x.User?.FirstName ?? "",
+                    LastName = x.User?.LastName ?? "",
+                    Email = x.User?.Email ?? "",
+                    EnrollmentDate = x.Enrollment.EnrollmentDate,
+                    Status = x.Enrollment.Status,
+                    StatusText = x.Enrollment.Status.ToString(),
                     HasFinalGrade = finalGrade != null,
                     FinalLetterGrade = finalGrade?.LetterGrade,
                     FinalNumericGrade = finalGrade?.NumericGrade
                 };
-            }).OrderBy(s => s.LastName).ThenBy(s => s.FirstName).ToList();
+            }).ToList();
 
-            return Ok(ApiResponse<IEnumerable<EnrolledStudentDto>>.SuccessResult(dtos));
+            var result = PagedResult<EnrolledStudentDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<EnrolledStudentDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving enrolled students for course offering {CourseOfferingId}", courseOfferingId);
-            return StatusCode(500, ApiResponse<IEnumerable<EnrolledStudentDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<EnrolledStudentDto>>.FailureResult(
                 "An error occurred while retrieving enrolled students"));
         }
     }

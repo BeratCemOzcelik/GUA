@@ -25,23 +25,23 @@ export default function FacultyDashboard() {
 
       // Get my courses and current term in parallel
       const [coursesRes, termRes] = await Promise.all([
-        api.get('/courseofferings/my-courses'),
+        api.get('/courseofferings/my-courses?pageSize=1000'),
         api.get('/AcademicTerms/current')
       ])
 
-      const courses = coursesRes.data.data || []
+      const data = coursesRes.data.data
+      const courses = data?.items || []
       setCurrentTerm(termRes.data.data)
 
-      // Calculate total students across all courses
       let totalStudents = 0
       for (const course of courses) {
         totalStudents += course.enrolledCount || 0
       }
 
       setStats({
-        totalCourses: courses.length,
+        totalCourses: data?.totalCount ?? courses.length,
         totalStudents: totalStudents,
-        pendingGrades: 0, // TODO: Calculate from grade components
+        pendingGrades: 0,
       })
     } catch (err: any) {
       console.error('Failed to load dashboard data:', err)

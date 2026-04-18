@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import Pagination from '@/components/Pagination'
+import SearchBar from '@/components/SearchBar'
 
 interface GradeComponent {
   id: number
@@ -26,8 +28,9 @@ interface StudentGrade {
   }[]
   finalLetterGrade?: string
   finalNumericGrade?: number
-  weightedAverage?: number
 }
+
+const STATUS_OPTIONS = ['Enrolled', 'Dropped', 'Completed', 'Withdrawn']
 
 export default function GradeEntryPage() {
   const params = useParams()
@@ -37,13 +40,20 @@ export default function GradeEntryPage() {
   const [courseInfo, setCourseInfo] = useState<any>(null)
   const [gradeComponents, setGradeComponents] = useState<GradeComponent[]>([])
   const [studentGrades, setStudentGrades] = useState<StudentGrade[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+
+  const [statusFilter, setStatusFilter] = useState('Enrolled')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setSaving] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Grade Component creation modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [componentForm, setComponentForm] = useState({
@@ -52,80 +62,97 @@ export default function GradeEntryPage() {
     weight: '',
     maxScore: '',
     dueDate: '',
-    isPublished: true  // Default to published so students can see it
+    isPublished: true,
   })
 
+  // Initial load: course info + grade components (these don't depend on pagination)
   useEffect(() => {
-    loadGradeData()
+    loadCourseAndComponents()
   }, [courseOfferingId])
 
-  const loadGradeData = async () => {
+  // Paginated student grades reload
+  useEffect(() => {
+    if (gradeComponents.length === 0) return
+    loadStudentGrades()
+  }, [courseOfferingId, statusFilter, search, page, pageSize, gradeComponents])
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, search, pageSize])
+
+  const loadCourseAndComponents = async () => {
+    try {
+      setError('')
+      const [courseRes, componentsRes] = await Promise.all([
+        api.get(`/CourseOfferings/${courseOfferingId}`),
+        api.get(`/GradeComponents/by-course-offering/${courseOfferingId}`),
+      ])
+      setCourseInfo(courseRes.data.data)
+      setGradeComponents(componentsRes.data.data || [])
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load course data')
+    }
+  }
+
+  const loadStudentGrades = async () => {
     try {
       setIsLoading(true)
       setError('')
 
-      // Load course info
-      const courseRes = await api.get(`/CourseOfferings/${courseOfferingId}`)
-      setCourseInfo(courseRes.data.data)
+      const qs = new URLSearchParams()
+      if (statusFilter) qs.append('status', statusFilter)
+      if (search) qs.append('search', search)
+      qs.append('page', page.toString())
+      qs.append('pageSize', pageSize.toString())
 
-      // Load students
-      const studentsRes = await api.get(`/Enrollments/by-course-offering/${courseOfferingId}/students`)
-      const students = studentsRes.data.data || []
+      const studentsRes = await api.get(`/Enrollments/by-course-offering/${courseOfferingId}/students?${qs.toString()}`)
+      const studentsData = studentsRes.data.data
+      const students = studentsData?.items || []
+      setTotalCount(studentsData?.totalCount || 0)
 
-      // Load grade components for this course offering
-      const componentsRes = await api.get(`/GradeComponents/by-course-offering/${courseOfferingId}`)
-      const components = componentsRes.data.data || []
-      console.log('Grade components loaded:', components)
-      setGradeComponents(components)
+      // Batch-fetch grades for visible students in parallel (N calls for page size, not total)
+      const gradeResults = await Promise.all(
+        students.map((s: any) =>
+          api
+            .get(`/Grades/enrollment/${s.enrollmentId}`)
+            .then((r) => ({ enrollmentId: s.enrollmentId, data: r.data.data }))
+            .catch(() => ({ enrollmentId: s.enrollmentId, data: null }))
+        )
+      )
+      const gradeMap = new Map<number, any>(gradeResults.map((g) => [g.enrollmentId, g.data]))
 
-      // Initialize student grades structure
-      const studentGradesData: StudentGrade[] = students.map((student: any) => ({
-        enrollmentId: student.enrollmentId,
-        studentNumber: student.studentNumber,
-        studentName: `${student.firstName} ${student.lastName}`,
-        gradeComponents: components.map((comp: any) => ({
-          componentId: comp.id,  // Keep as componentId for the grade structure
-          score: undefined,
-          gradeId: undefined,
-        })),
-        finalLetterGrade: student.finalLetterGrade,
-        finalNumericGrade: student.finalNumericGrade,
-      }))
+      const studentGradesData: StudentGrade[] = students.map((student: any) => {
+        const enrollmentData = gradeMap.get(student.enrollmentId)
+        const componentGrades = enrollmentData?.componentGrades || []
 
-      // Load existing grades for each student
-      for (const studentGrade of studentGradesData) {
-        try {
-          const gradesRes = await api.get(`/Grades/enrollment/${studentGrade.enrollmentId}`)
-          const enrollmentData = gradesRes.data.data // StudentGradesSummaryDto object
-          const componentGrades = enrollmentData?.componentGrades || []
-
-          // Map existing grades to components
-          componentGrades.forEach((compGrade: any) => {
-            if (compGrade.grade) {  // Grade is nested inside componentGrade
-              const studentCompGrade = studentGrade.gradeComponents.find(
-                (g) => g.componentId === compGrade.componentId
-              )
-              if (studentCompGrade) {
-                studentCompGrade.score = compGrade.grade.score
-                studentCompGrade.gradeId = compGrade.grade.id
-              }
+        return {
+          enrollmentId: student.enrollmentId,
+          studentNumber: student.studentNumber,
+          studentName: `${student.firstName} ${student.lastName}`,
+          gradeComponents: gradeComponents.map((comp) => {
+            const existing = componentGrades.find((cg: any) => cg.componentId === comp.id)
+            return {
+              componentId: comp.id,
+              score: existing?.grade?.score,
+              gradeId: existing?.grade?.id,
             }
-          })
-        } catch (err) {
-          console.error(`Failed to load grades for enrollment ${studentGrade.enrollmentId}`, err)
+          }),
+          finalLetterGrade: student.finalLetterGrade,
+          finalNumericGrade: student.finalNumericGrade,
         }
-      }
+      })
 
       setStudentGrades(studentGradesData)
+      setHasUnsavedChanges(false)
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load grade data')
-      console.error('Load grade data error:', err)
+      setError(err.response?.data?.message || 'Failed to load student grades')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleScoreChange = (enrollmentId: number, componentId: number, value: string) => {
+    setHasUnsavedChanges(true)
     setStudentGrades((prev) =>
       prev.map((student) => {
         if (student.enrollmentId === enrollmentId) {
@@ -143,13 +170,25 @@ export default function GradeEntryPage() {
     )
   }
 
+  const confirmPageChange = (): boolean => {
+    if (!hasUnsavedChanges) return true
+    return window.confirm('You have unsaved grade changes. Leave this page anyway?')
+  }
+
+  const handlePageChange = (newPage: number) => {
+    if (confirmPageChange()) setPage(newPage)
+  }
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    if (confirmPageChange()) setPageSize(newPageSize)
+  }
+
   const handleCreateComponent = async () => {
     try {
       setIsCreating(true)
       setError('')
       setSuccess('')
 
-      // Validate form
       if (!componentForm.name || !componentForm.weight || !componentForm.maxScore) {
         setError('Please fill in all required fields')
         return
@@ -169,18 +208,16 @@ export default function GradeEntryPage() {
       }
 
       const payload = {
-        courseOfferingId: courseOfferingId,
+        courseOfferingId,
         name: componentForm.name,
         type: componentForm.type,
-        weight: weight,
-        maxScore: maxScore,
+        weight,
+        maxScore,
         dueDate: componentForm.dueDate ? new Date(componentForm.dueDate).toISOString() : null,
-        isPublished: componentForm.isPublished
+        isPublished: componentForm.isPublished,
       }
 
-      console.log('Creating grade component with payload:', payload)
-      const response = await api.post('/GradeComponents', payload)
-      console.log('Grade component created:', response.data)
+      await api.post('/GradeComponents', payload)
 
       setSuccess('Grade component created successfully!')
       setShowCreateModal(false)
@@ -190,12 +227,11 @@ export default function GradeEntryPage() {
         weight: '',
         maxScore: '',
         dueDate: '',
-        isPublished: true
+        isPublished: true,
       })
-      loadGradeData() // Reload to get updated data
+      await loadCourseAndComponents()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create grade component')
-      console.error('Create component error:', err)
     } finally {
       setIsCreating(false)
     }
@@ -207,7 +243,6 @@ export default function GradeEntryPage() {
       setError('')
       setSuccess('')
 
-      // Save all grades
       for (const student of studentGrades) {
         for (const comp of student.gradeComponents) {
           if (comp.score !== undefined && comp.score !== null) {
@@ -218,10 +253,8 @@ export default function GradeEntryPage() {
             }
 
             if (comp.gradeId) {
-              // Update existing grade
               await api.put(`/Grades/${comp.gradeId}`, payload)
             } else {
-              // Create new grade
               await api.post('/Grades', payload)
             }
           }
@@ -229,10 +262,10 @@ export default function GradeEntryPage() {
       }
 
       setSuccess('Grades saved successfully!')
-      loadGradeData() // Reload to get updated data
+      setHasUnsavedChanges(false)
+      await loadStudentGrades()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to save grades')
-      console.error('Save grades error:', err)
     } finally {
       setSaving(false)
     }
@@ -247,29 +280,18 @@ export default function GradeEntryPage() {
       await api.post(`/FinalGrades/courseoffering/${courseOfferingId}/publish`)
 
       setSuccess('Final grades calculated and published successfully!')
-      loadGradeData()
+      await loadStudentGrades()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to publish final grades')
-      console.error('Publish final grades error:', err)
     } finally {
       setIsPublishing(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-12 h-12 border-4 border-[#8B1A1A] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
   if (error && !courseInfo) {
     return (
       <div className="space-y-4">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">{error}</div>
         <button onClick={() => router.back()} className="px-4 py-2 text-[#8B1A1A] hover:underline">
           ← Go Back
         </button>
@@ -295,18 +317,14 @@ export default function GradeEntryPage() {
       </div>
 
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-6 py-4 rounded-lg">
-          {success}
-        </div>
+        <div className="bg-green-50 border border-green-200 text-green-700 px-6 py-4 rounded-lg">{success}</div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">{error}</div>
       )}
 
-      {/* Grade Components Info */}
+      {/* Grade Components */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900">Grade Components</h2>
@@ -319,7 +337,7 @@ export default function GradeEntryPage() {
         </div>
         {gradeComponents.length === 0 ? (
           <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg">
-            No grade components defined yet. Click "Add Component" to create one.
+            No grade components defined yet. Click &quot;Add Component&quot; to create one.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -353,18 +371,46 @@ export default function GradeEntryPage() {
         )}
       </div>
 
+      {/* Student Filter */}
+      {gradeComponents.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by student name, number, or email..."
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Grade Entry Table */}
       {gradeComponents.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Student Grades</h2>
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Student Grades ({totalCount})</h2>
+              {hasUnsavedChanges && (
+                <p className="text-sm text-amber-600 mt-1">⚠ You have unsaved changes on this page</p>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveGrades}
                 disabled={isSaving}
                 className="px-6 py-2 bg-[#8B1A1A] text-white rounded-lg font-semibold hover:bg-[#6B1414] transition-colors disabled:opacity-50"
               >
-                {isSaving ? 'Saving...' : 'Save All Grades'}
+                {isSaving ? 'Saving...' : 'Save Page Grades'}
               </button>
               <button
                 onClick={handlePublishFinalGrades}
@@ -376,74 +422,89 @@ export default function GradeEntryPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase sticky left-0 bg-gray-50">
-                    Student
-                  </th>
-                  {gradeComponents.map((comp) => (
-                    <th
-                      key={comp.id}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase"
-                    >
-                      <div>{comp.name}</div>
-                      <div className="text-gray-500 font-normal">({comp.maxScore} pts)</div>
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">
-                    Final
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {studentGrades.map((student) => (
-                  <tr key={student.enrollmentId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-white">
-                      <div>{student.studentName}</div>
-                      <div className="text-xs text-gray-500">{student.studentNumber}</div>
-                    </td>
-                    {student.gradeComponents.map((comp) => {
-                      const component = gradeComponents.find((c) => c.id === comp.componentId)
-                      return (
-                        <td key={comp.componentId} className="px-4 py-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max={component?.maxScore}
-                            step="0.1"
-                            value={comp.score ?? ''}
-                            onChange={(e) =>
-                              handleScoreChange(student.enrollmentId, comp.componentId, e.target.value)
-                            }
-                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
-                            placeholder="-"
-                          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-12 h-12 border-4 border-[#8B1A1A] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : studentGrades.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-600">No students found with current filters.</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase sticky left-0 bg-gray-50">
+                        Student
+                      </th>
+                      {gradeComponents.map((comp) => (
+                        <th
+                          key={comp.id}
+                          className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase"
+                        >
+                          <div>{comp.name}</div>
+                          <div className="text-gray-500 font-normal">({comp.maxScore} pts)</div>
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Final</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {studentGrades.map((student) => (
+                      <tr key={student.enrollmentId} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                          <div>{student.studentName}</div>
+                          <div className="text-xs text-gray-500">{student.studentNumber}</div>
                         </td>
-                      )
-                    })}
-                    <td className="px-4 py-3 text-center">
-                      {student.finalLetterGrade ? (
-                        <div>
-                          <span className="text-sm font-bold text-green-600">
-                            {student.finalLetterGrade}
-                          </span>
-                          {student.finalNumericGrade !== undefined && student.finalNumericGrade !== null && (
-                            <span className="text-xs text-gray-500 ml-1">
-                              ({student.finalNumericGrade.toFixed(1)})
-                            </span>
+                        {student.gradeComponents.map((comp) => {
+                          const component = gradeComponents.find((c) => c.id === comp.componentId)
+                          return (
+                            <td key={comp.componentId} className="px-4 py-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={component?.maxScore}
+                                step="0.1"
+                                value={comp.score ?? ''}
+                                onChange={(e) =>
+                                  handleScoreChange(student.enrollmentId, comp.componentId, e.target.value)
+                                }
+                                className="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+                                placeholder="-"
+                              />
+                            </td>
+                          )
+                        })}
+                        <td className="px-4 py-3 text-center">
+                          {student.finalLetterGrade ? (
+                            <div>
+                              <span className="text-sm font-bold text-green-600">{student.finalLetterGrade}</span>
+                              {student.finalNumericGrade !== undefined && student.finalNumericGrade !== null && (
+                                <span className="text-xs text-gray-500 ml-1">
+                                  ({student.finalNumericGrade.toFixed(1)})
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
                           )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -454,16 +515,16 @@ export default function GradeEntryPage() {
           <div>
             <h3 className="font-semibold text-blue-900 mb-1">Grade Entry Instructions</h3>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Enter scores for each grade component (assignments, exams, etc.)</li>
-              <li>• Scores must be between 0 and the max score for each component</li>
-              <li>• Click "Save All Grades" to save your entries</li>
-              <li>• After saving all scores, click "Publish Final Grades" to calculate and publish letter grades</li>
+              <li>• Enter scores for each grade component</li>
+              <li>• &quot;Save Page Grades&quot; saves the grades for students currently visible on this page</li>
+              <li>• Save before moving to the next page — unsaved changes will be lost (you&apos;ll be warned)</li>
+              <li>• After all pages are saved, click &quot;Publish Final Grades&quot; to calculate letter grades</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* Create Grade Component Modal */}
+      {/* Create Grade Component Modal (unchanged) */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
@@ -471,11 +532,8 @@ export default function GradeEntryPage() {
               <h3 className="text-xl font-bold text-gray-900 mb-4">Create Grade Component</h3>
 
               <div className="space-y-4">
-                {/* Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Component Name *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Component Name *</label>
                   <input
                     type="text"
                     value={componentForm.name}
@@ -485,11 +543,8 @@ export default function GradeEntryPage() {
                   />
                 </div>
 
-                {/* Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Type *</label>
                   <select
                     value={componentForm.type}
                     onChange={(e) => setComponentForm({ ...componentForm, type: e.target.value })}
@@ -506,12 +561,9 @@ export default function GradeEntryPage() {
                   </select>
                 </div>
 
-                {/* Weight and Max Score */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Weight (%) *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Weight (%) *</label>
                     <input
                       type="number"
                       min="0"
@@ -524,9 +576,7 @@ export default function GradeEntryPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Max Score *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Max Score *</label>
                     <input
                       type="number"
                       min="0"
@@ -539,23 +589,17 @@ export default function GradeEntryPage() {
                   </div>
                 </div>
 
-                {/* Due Date (optional) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Due Date (Optional)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Due Date (Optional)</label>
                   <input
                     type="datetime-local"
                     value={componentForm.dueDate}
                     onChange={(e) => setComponentForm({ ...componentForm, dueDate: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Required for assignments that need student submission
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Required for assignments that need student submission</p>
                 </div>
 
-                {/* Published */}
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -580,7 +624,7 @@ export default function GradeEntryPage() {
                       weight: '',
                       maxScore: '',
                       dueDate: '',
-                      isPublished: true
+                      isPublished: true,
                     })
                   }}
                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"

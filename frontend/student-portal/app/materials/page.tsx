@@ -19,10 +19,10 @@ export default function MaterialsPage() {
       setIsLoading(true)
       setError('')
 
-      const response = await enrollmentsApi.getMyEnrollments()
+      const response = await enrollmentsApi.getMyEnrollments({ pageSize: 1000 })
 
       // Map backend data to frontend format
-      const mappedEnrollments = response.data.map((enrollment: any) => ({
+      const mappedEnrollments = (response.data?.items || []).map((enrollment: any) => ({
         ...enrollment,
         courseOffering: {
           id: enrollment.courseOfferingId,

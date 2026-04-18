@@ -26,13 +26,13 @@ export default function DashboardPage() {
       // Load student profile and current enrollments
       const [profileRes, enrollmentsRes] = await Promise.all([
         studentProfileApi.getMyProfile(),
-        enrollmentsApi.getMyEnrollments(undefined, 'Enrolled')
+        enrollmentsApi.getMyEnrollments({ status: 'Enrolled', pageSize: 1000 })
       ])
 
       setProfile(profileRes.data)
 
       // Map backend data to frontend format (add courseOffering nested object)
-      const mappedEnrollments = enrollmentsRes.data.map((enrollment: any) => ({
+      const mappedEnrollments = (enrollmentsRes.data?.items || []).map((enrollment: any) => ({
         ...enrollment,
         courseOffering: {
           id: enrollment.courseOfferingId,

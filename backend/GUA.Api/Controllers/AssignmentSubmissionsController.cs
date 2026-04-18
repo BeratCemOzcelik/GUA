@@ -21,6 +21,7 @@ public class AssignmentSubmissionsController : ControllerBase
     private readonly IRepository<Grade> _gradeRepository;
     private readonly IRepository<CourseOffering> _offeringRepository;
     private readonly IRepository<Course> _courseRepository;
+    private readonly IRepository<User> _userRepository;
     private readonly ILogger<AssignmentSubmissionsController> _logger;
 
     public AssignmentSubmissionsController(
@@ -31,6 +32,7 @@ public class AssignmentSubmissionsController : ControllerBase
         IRepository<Grade> gradeRepository,
         IRepository<CourseOffering> offeringRepository,
         IRepository<Course> courseRepository,
+        IRepository<User> userRepository,
         ILogger<AssignmentSubmissionsController> logger)
     {
         _repository = repository;
@@ -40,6 +42,7 @@ public class AssignmentSubmissionsController : ControllerBase
         _gradeRepository = gradeRepository;
         _offeringRepository = offeringRepository;
         _courseRepository = courseRepository;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -184,24 +187,119 @@ public class AssignmentSubmissionsController : ControllerBase
 
     [HttpGet("grade-component/{gradeComponentId}")]
     [Authorize(Roles = "Admin,SuperAdmin,Faculty")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<AssignmentSubmissionDto>>>> GetSubmissionsByComponent(int gradeComponentId)
+    public async Task<ActionResult<ApiResponse<PagedResult<AssignmentSubmissionDto>>>> GetSubmissionsByComponent(
+        int gradeComponentId,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var submissions = await _repository.FindAsync(s => s.GradeComponentId == gradeComponentId);
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
 
-            var dtos = new List<AssignmentSubmissionDto>();
-            foreach (var submission in submissions)
+            var submissions = (await _repository.FindAsync(s => s.GradeComponentId == gradeComponentId)).ToList();
+
+            // Batch-load related data once (prevents N+1)
+            var enrollmentIds = submissions.Select(s => s.EnrollmentId).Distinct().ToList();
+            var enrollments = (await _enrollmentRepository.FindAsync(e => enrollmentIds.Contains(e.Id))).ToList();
+            var enrollmentDict = enrollments.ToDictionary(e => e.Id);
+
+            var studentIds = enrollments.Select(e => e.StudentId).Distinct().ToList();
+            var students = (await _studentRepository.FindAsync(s => studentIds.Contains(s.Id))).ToList();
+            var studentDict = students.ToDictionary(s => s.Id);
+
+            var userIds = students.Select(s => s.UserId).Distinct().ToList();
+            var users = (await _userRepository.FindAsync(u => userIds.Contains(u.Id))).ToList();
+            var userDict = users.ToDictionary(u => u.Id);
+
+            var component = await _componentRepository.GetByIdAsync(gradeComponentId);
+            var offering = component != null ? await _offeringRepository.GetByIdAsync(component.CourseOfferingId) : null;
+            var course = offering != null ? await _courseRepository.GetByIdAsync(offering.CourseId) : null;
+
+            var grades = (await _gradeRepository.FindAsync(g =>
+                g.GradeComponentId == gradeComponentId && enrollmentIds.Contains(g.EnrollmentId))).ToList();
+            var gradeDict = grades.ToDictionary(g => g.EnrollmentId);
+
+            // Resolve per-submission student info for filtering
+            var submissionInfo = submissions.Select(s =>
             {
-                dtos.Add(await MapToDto(submission));
+                var enrollment = enrollmentDict.GetValueOrDefault(s.EnrollmentId);
+                var student = enrollment != null ? studentDict.GetValueOrDefault(enrollment.StudentId) : null;
+                var user = student != null ? userDict.GetValueOrDefault(student.UserId) : null;
+                var studentName = user != null ? $"{user.FirstName} {user.LastName}" : "";
+                var studentNumber = student?.StudentNumber ?? "";
+                var grade = gradeDict.GetValueOrDefault(s.EnrollmentId);
+                var effectiveStatus = grade != null ? SubmissionStatus.Graded : s.Status;
+                return new { Submission = s, StudentName = studentName, StudentNumber = studentNumber, Grade = grade, EffectiveStatus = effectiveStatus };
+            }).ToList();
+
+            // Filters
+            if (!string.IsNullOrWhiteSpace(status)
+                && Enum.TryParse<SubmissionStatus>(status, true, out var statusEnum))
+            {
+                submissionInfo = submissionInfo.Where(x => x.EffectiveStatus == statusEnum).ToList();
             }
 
-            return Ok(ApiResponse<IEnumerable<AssignmentSubmissionDto>>.SuccessResult(dtos));
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                submissionInfo = submissionInfo.Where(x =>
+                    x.StudentName.ToLowerInvariant().Contains(term)
+                    || x.StudentNumber.ToLowerInvariant().Contains(term)).ToList();
+            }
+
+            var totalCount = submissionInfo.Count;
+
+            var paged = submissionInfo
+                .OrderByDescending(x => x.Submission.SubmittedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var dtos = paged.Select(x =>
+            {
+                var s = x.Submission;
+                var dto = new AssignmentSubmissionDto
+                {
+                    Id = s.Id,
+                    EnrollmentId = s.EnrollmentId,
+                    GradeComponentId = s.GradeComponentId,
+                    StudentName = x.StudentName,
+                    StudentNumber = x.StudentNumber,
+                    GradeComponentName = component?.Name ?? "",
+                    CourseCode = course?.Code ?? "",
+                    CourseName = course?.Name ?? "",
+                    DueDate = component?.DueDate != null
+                        ? DateTime.SpecifyKind(component.DueDate.Value, DateTimeKind.Utc)
+                        : null,
+                    MaxScore = component?.MaxScore ?? 0,
+                    Weight = component?.Weight ?? 0,
+                    SubmittedAt = DateTime.SpecifyKind(s.SubmittedAt, DateTimeKind.Utc),
+                    FileUrl = s.FileUrl,
+                    FileName = s.FileName,
+                    FileSize = s.FileSize,
+                    StudentComments = s.StudentComments,
+                    Status = x.EffectiveStatus,
+                    StatusText = x.EffectiveStatus.ToString(),
+                    Score = x.Grade?.Score,
+                    FacultyComments = x.Grade?.Comments,
+                    GradedAt = x.Grade != null
+                        ? DateTime.SpecifyKind(x.Grade.GradedAt, DateTimeKind.Utc)
+                        : null
+                };
+                return dto;
+            }).ToList();
+
+            var result = PagedResult<AssignmentSubmissionDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<AssignmentSubmissionDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving submissions for component {ComponentId}", gradeComponentId);
-            return StatusCode(500, ApiResponse<IEnumerable<AssignmentSubmissionDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<AssignmentSubmissionDto>>.FailureResult(
                 "An error occurred while retrieving submissions"));
         }
     }

@@ -110,10 +110,19 @@ export const enrollmentsApi = {
     const response = await api.get(`/enrollments/my-available-courses${params.toString() ? '?' + params.toString() : ''}`)
     return response.data
   },
-  getMyEnrollments: async (termId?: number, status?: string) => {
+  getMyEnrollments: async (opts?: {
+    termId?: number
+    status?: string
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
     const params = new URLSearchParams()
-    if (termId) params.append('termId', termId.toString())
-    if (status) params.append('status', status)
+    if (opts?.termId) params.append('termId', opts.termId.toString())
+    if (opts?.status) params.append('status', opts.status)
+    if (opts?.search) params.append('search', opts.search)
+    if (opts?.page) params.append('page', opts.page.toString())
+    if (opts?.pageSize) params.append('pageSize', opts.pageSize.toString())
     const response = await api.get(`/enrollments/my-enrollments${params.toString() ? '?' + params.toString() : ''}`)
     return response.data
   },
