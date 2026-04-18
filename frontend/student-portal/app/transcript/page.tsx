@@ -166,7 +166,7 @@ export default function TranscriptPage() {
           </div>
         ) : (
           transcriptData.termRecords.map((termRecord) => (
-            <div key={termRecord.termId} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div key={termRecord.termCode || termRecord.termName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               {/* Term Header */}
               <div className="bg-primary/5 border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between">
@@ -179,12 +179,14 @@ export default function TranscriptPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-gray-600">Credits Earned</p>
-                      <p className="font-bold text-gray-900">{termRecord.termCredits || termRecord.termCreditsEarned || 0}</p>
+                      <p className="text-gray-600">Term Credits</p>
+                      <p className="font-bold text-gray-900">{termRecord.termCredits ?? 0}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-gray-600">Credits Attempted</p>
-                      <p className="font-bold text-gray-900">{termRecord.termCredits || termRecord.termCreditsAttempted || 0}</p>
+                      <p className="text-gray-600">Cumulative GPA</p>
+                      <p className="font-bold text-gray-900">
+                        {termRecord.cumulativeGPA != null ? termRecord.cumulativeGPA.toFixed(2) : 'N/A'}
+                      </p>
                     </div>
                   </div>
                 </div>

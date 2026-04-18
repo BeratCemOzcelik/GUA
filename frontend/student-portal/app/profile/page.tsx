@@ -206,7 +206,7 @@ export default function ProfilePage() {
             </label>
             <input
               type="text"
-              value={new Date(profile.dateOfBirth).toLocaleDateString()}
+              value={profile.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : '—'}
               disabled
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -230,7 +230,7 @@ export default function ProfilePage() {
             </label>
             <input
               type="text"
-              value={new Date(profile.enrollmentDate).toLocaleDateString()}
+              value={profile.enrollmentDate ? new Date(profile.enrollmentDate).toLocaleDateString() : '—'}
               disabled
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -242,7 +242,7 @@ export default function ProfilePage() {
             </label>
             <input
               type="text"
-              value={new Date(profile.expectedGraduationDate).toLocaleDateString()}
+              value={profile.expectedGraduationDate ? new Date(profile.expectedGraduationDate).toLocaleDateString() : '—'}
               disabled
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -343,11 +343,13 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-primary/5 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-2">Current GPA</p>
-            <p className="text-4xl font-bold text-primary">{profile.currentGPA.toFixed(2)}</p>
+            <p className="text-4xl font-bold text-primary">
+              {profile.currentGPA != null ? profile.currentGPA.toFixed(2) : 'N/A'}
+            </p>
           </div>
           <div className="bg-green-50 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-2">Total Credits Earned</p>
-            <p className="text-4xl font-bold text-green-600">{profile.totalCreditsEarned}</p>
+            <p className="text-4xl font-bold text-green-600">{profile.totalCreditsEarned ?? 0}</p>
           </div>
         </div>
       </div>

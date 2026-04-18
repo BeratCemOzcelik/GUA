@@ -113,17 +113,13 @@ export interface TranscriptData {
 }
 
 export interface TermRecord {
-  termId?: number
   termName: string
-  termCode?: string
+  termCode: string
   courses: TranscriptCourse[]
   termGPA: number
   termCredits: number
   cumulativeGPA: number
   cumulativeCredits: number
-  // Keep for backward compat
-  termCreditsEarned?: number
-  termCreditsAttempted?: number
 }
 
 export interface TranscriptCourse {
@@ -142,9 +138,10 @@ export interface TranscriptCourse {
 export interface AcademicTerm {
   id: number
   name: string
+  code: string
   startDate: string
   endDate: string
-  isCurrent: boolean
+  isActive: boolean
 }
 
 // Department

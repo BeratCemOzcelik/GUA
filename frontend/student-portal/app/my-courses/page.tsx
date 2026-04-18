@@ -53,7 +53,7 @@ export default function MyCoursesPage() {
       const response = await academicTermsApi.getAll()
       setTerms(response.data)
 
-      const currentTerm = response.data.find((t: AcademicTerm) => t.isCurrent)
+      const currentTerm = response.data.find((t: AcademicTerm) => t.isActive)
       if (currentTerm) {
         setSelectedTerm(currentTerm.id)
       }
@@ -202,7 +202,7 @@ export default function MyCoursesPage() {
               <option value="">All Terms</option>
               {terms.map((term) => (
                 <option key={term.id} value={term.id}>
-                  {term.name} {term.isCurrent ? '(Current)' : ''}
+                  {term.name} {term.isActive ? '(Current)' : ''}
                 </option>
               ))}
             </select>

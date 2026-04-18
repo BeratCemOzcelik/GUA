@@ -26,7 +26,7 @@ export default function GradesPage() {
       setTerms(response.data)
 
       // Set current term as default
-      const currentTerm = response.data.find((t: AcademicTerm) => t.isCurrent)
+      const currentTerm = response.data.find((t: AcademicTerm) => t.isActive)
       if (currentTerm) {
         setSelectedTerm(currentTerm.id)
       }
@@ -128,7 +128,7 @@ export default function GradesPage() {
             <option value="">All Terms</option>
             {terms.map((term) => (
               <option key={term.id} value={term.id}>
-                {term.name} {term.isCurrent ? '(Current)' : ''}
+                {term.name} {term.isActive ? '(Current)' : ''}
               </option>
             ))}
           </select>

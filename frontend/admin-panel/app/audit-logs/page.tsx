@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { auditLogsApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 
@@ -95,8 +95,8 @@ export default function AuditLogsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {logs.map(log => (
-                  <>
-                    <tr key={log.id} className="hover:bg-gray-50">
+                  <Fragment key={log.id}>
+                    <tr className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
                         {formatDate(log.timestamp)}
                       </td>
@@ -128,7 +128,7 @@ export default function AuditLogsPage() {
                       </td>
                     </tr>
                     {expandedId === log.id && (
-                      <tr key={`${log.id}-detail`}>
+                      <tr>
                         <td colSpan={6} className="px-6 py-4 bg-gray-50">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {log.oldValue && (
@@ -151,7 +151,7 @@ export default function AuditLogsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

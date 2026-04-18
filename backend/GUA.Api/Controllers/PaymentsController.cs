@@ -110,6 +110,86 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    // GET: api/payments/stats — aggregated totals over filtered dataset (no pagination)
+    [HttpGet("stats")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<ApiResponse<PaymentStatsDto>>> GetStats(
+        [FromQuery] int? studentId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null)
+    {
+        try
+        {
+            var allPayments = (studentId.HasValue
+                ? await _repository.FindAsync(p => p.StudentId == studentId.Value)
+                : await _repository.GetAllAsync()).ToList();
+
+            if (!string.IsNullOrWhiteSpace(status)
+                && Enum.TryParse<PaymentStatus>(status, true, out var statusEnum))
+            {
+                allPayments = allPayments.Where(p => p.Status == (int)statusEnum).ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var students = (await _studentRepository.GetAllAsync()).ToDictionary(s => s.Id);
+                var users = (await _userRepository.GetAllAsync()).ToDictionary(u => u.Id);
+                var term = search.Trim().ToLowerInvariant();
+                allPayments = allPayments.Where(p =>
+                {
+                    var student = students.GetValueOrDefault(p.StudentId);
+                    if (student == null) return false;
+                    var user = users.GetValueOrDefault(student.UserId);
+                    var fullName = user != null ? $"{user.FirstName} {user.LastName}".ToLowerInvariant() : "";
+                    return fullName.Contains(term)
+                        || (student.StudentNumber ?? "").ToLowerInvariant().Contains(term)
+                        || (p.Description ?? "").ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var stats = new PaymentStatsDto
+            {
+                TotalExpected = allPayments.Sum(p => p.Amount),
+                TotalCollected = allPayments.Where(p => p.Status == (int)PaymentStatus.Completed).Sum(p => p.Amount),
+                TotalPending = allPayments.Where(p => p.Status == (int)PaymentStatus.Pending).Sum(p => p.Amount),
+                StudentsWithPlans = allPayments.Select(p => p.StudentId).Distinct().Count(),
+                TotalPayments = allPayments.Count
+            };
+
+            return Ok(ApiResponse<PaymentStatsDto>.SuccessResult(stats));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment stats");
+            return StatusCode(500, ApiResponse<PaymentStatsDto>.FailureResult("Failed to retrieve stats"));
+        }
+    }
+
+    // GET: api/payments/eligible-students — students with no payment plan yet
+    [HttpGet("eligible-students")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<ApiResponse<List<int>>>> GetStudentsWithoutPayments()
+    {
+        try
+        {
+            var allPayments = await _repository.GetAllAsync();
+            var studentIdsWithPlans = allPayments.Select(p => p.StudentId).Distinct().ToHashSet();
+
+            var allStudents = await _studentRepository.GetAllAsync();
+            var eligibleIds = allStudents
+                .Where(s => !studentIdsWithPlans.Contains(s.Id))
+                .Select(s => s.Id)
+                .ToList();
+
+            return Ok(ApiResponse<List<int>>.SuccessResult(eligibleIds));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting eligible students");
+            return StatusCode(500, ApiResponse<List<int>>.FailureResult("Failed to retrieve eligible students"));
+        }
+    }
+
     // GET: api/payments/my
     [HttpGet("my")]
     public async Task<ActionResult<ApiResponse<PaymentSummaryDto>>> GetMyPayments()

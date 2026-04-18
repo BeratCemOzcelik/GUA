@@ -296,6 +296,104 @@ public class StudentProfilesController : ControllerBase
         }
     }
 
+    [HttpPut("me")]
+    [Authorize(Roles = "Student")]
+    public async Task<ActionResult<ApiResponse<StudentProfileDto>>> UpdateMyProfile([FromBody] UpdateMyStudentProfileDto request)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                return Unauthorized(ApiResponse<StudentProfileDto>.FailureResult("Invalid user token"));
+            }
+
+            var students = await _repository.GetAllAsync();
+            var student = students.FirstOrDefault(s => s.UserId == userId);
+            if (student == null)
+            {
+                return NotFound(ApiResponse<StudentProfileDto>.FailureResult("Student profile not found"));
+            }
+
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(ApiResponse<StudentProfileDto>.FailureResult("User not found"));
+            }
+
+            // Allow clearing fields by sending empty string (not null which means "no change")
+            if (request.Address != null) student.Address = request.Address;
+            if (request.City != null) student.City = request.City;
+            if (request.Country != null) student.Country = request.Country;
+            student.UpdatedAt = DateTime.UtcNow;
+
+            if (request.PhoneNumber != null)
+            {
+                user.PhoneNumber = request.PhoneNumber;
+                user.UpdatedAt = DateTime.UtcNow;
+                await _userRepository.UpdateAsync(user);
+            }
+
+            await _repository.UpdateAsync(student);
+
+            return await GetById(student.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating current user's student profile");
+            return StatusCode(500, ApiResponse<StudentProfileDto>.FailureResult(
+                "An error occurred while updating your profile"));
+        }
+    }
+
+    [HttpPost("me/change-password")]
+    [Authorize(Roles = "Student")]
+    public async Task<ActionResult<ApiResponse<bool>>> ChangeMyPassword([FromBody] StudentChangePasswordRequest request)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                return Unauthorized(ApiResponse<bool>.FailureResult("Invalid user token"));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+            {
+                return BadRequest(ApiResponse<bool>.FailureResult("Current password is required"));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+            {
+                return BadRequest(ApiResponse<bool>.FailureResult("New password must be at least 6 characters long"));
+            }
+
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(ApiResponse<bool>.FailureResult("User not found"));
+            }
+
+            // Verify current password
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            {
+                return BadRequest(ApiResponse<bool>.FailureResult("Current password is incorrect"));
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userRepository.UpdateAsync(user);
+
+            return Ok(ApiResponse<bool>.SuccessResult(true, "Password changed successfully"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing current user's password");
+            return StatusCode(500, ApiResponse<bool>.FailureResult(
+                "An error occurred while changing your password"));
+        }
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<StudentProfileDto>>> Update(int id, [FromBody] UpdateStudentProfileDto request)
     {

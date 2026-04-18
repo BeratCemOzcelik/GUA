@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usersApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
@@ -43,7 +43,10 @@ export default function UsersPage() {
   })
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const fetchSeqRef = useRef(0)
+
   const fetchUsers = async () => {
+    const mySeq = ++fetchSeqRef.current
     try {
       setLoading(true)
       setError(null)
@@ -54,14 +57,16 @@ export default function UsersPage() {
         page,
         pageSize,
       })
+      if (mySeq !== fetchSeqRef.current) return
       const data = response.data
       setUsers(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== fetchSeqRef.current) return
       console.error('Failed to fetch users:', err)
       setError(err.message || 'Failed to load users')
     } finally {
-      setLoading(false)
+      if (mySeq === fetchSeqRef.current) setLoading(false)
     }
   }
 

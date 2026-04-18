@@ -146,10 +146,12 @@ export default function CourseOfferingMaterialsPage() {
       formData.append('file', file)
       formData.append('folder', 'assignments')
 
-      const uploadRes = await api.post('/Files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      // Do NOT set Content-Type manually — axios will compute the multipart boundary automatically.
+      const uploadRes = await api.post('/Files/upload', formData)
 
+      if (!uploadRes.data?.success || !uploadRes.data?.data?.fileUrl) {
+        throw new Error(uploadRes.data?.message || 'File upload failed')
+      }
       const fileUrl = uploadRes.data.data.fileUrl
 
       // Submit assignment
@@ -171,24 +173,32 @@ export default function CourseOfferingMaterialsPage() {
     } catch (err: any) {
       console.error('Upload error:', err)
       console.error('Error response:', err.response)
-      const errorMsg = err.response?.data?.message
-        || err.response?.data?.errors
-        || err.message
-        || 'Failed to submit assignment'
-      alert(`Error: ${JSON.stringify(errorMsg)}`)
+      const data = err.response?.data
+      let errorMsg: string = data?.message || err.message || 'Failed to submit assignment'
+      // Validation errors may come as { errors: { field: ["msg"] } } or array of strings
+      if (!data?.message && data?.errors) {
+        if (Array.isArray(data.errors)) {
+          errorMsg = data.errors.join('\n')
+        } else if (typeof data.errors === 'object') {
+          errorMsg = Object.values(data.errors).flat().join('\n')
+        }
+      }
+      alert(`Error: ${errorMsg}`)
     } finally {
       setUploading(false)
     }
   }
 
   const getStatusBadge = (component: GradeComponentWithSubmission) => {
-    if (component.submission?.status === 'Graded') {
+    // Prefer statusText (guaranteed string) over status (may serialize as number depending on JSON enum config)
+    const status = component.submission?.statusText || component.submission?.status
+    if (status === 'Graded') {
       return <span className="text-xs px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">✅ Graded</span>
     }
-    if (component.submission?.status === 'Submitted') {
+    if (status === 'Submitted') {
       return <span className="text-xs px-3 py-1 rounded-full font-medium bg-blue-100 text-blue-700">✅ Submitted</span>
     }
-    if (component.submission?.status === 'Late') {
+    if (status === 'Late') {
       return <span className="text-xs px-3 py-1 rounded-full font-medium bg-orange-100 text-orange-700">🟡 Late</span>
     }
     if (component.dueDate && new Date(component.dueDate) < new Date()) {

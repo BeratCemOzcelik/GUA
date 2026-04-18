@@ -332,7 +332,7 @@ public class TranscriptsController : ControllerBase
     }
 
     [HttpPost("generate")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [Authorize(Roles = "Admin,SuperAdmin,Student")]
     public async Task<ActionResult<ApiResponse<TranscriptDto>>> Generate()
     {
         try

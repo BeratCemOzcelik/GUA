@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { courseOfferingsApi, academicTermsApi, coursesApi, facultyApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
@@ -90,7 +90,10 @@ export default function CourseOfferingsPage() {
     }
   }
 
+  const fetchSeqRef = useRef(0)
+
   const fetchOfferings = async () => {
+    const mySeq = ++fetchSeqRef.current
     try {
       setLoading(true)
       setError(null)
@@ -102,14 +105,16 @@ export default function CourseOfferingsPage() {
         page,
         pageSize,
       })
+      if (mySeq !== fetchSeqRef.current) return
       const data = response.data
       setOfferings(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== fetchSeqRef.current) return
       console.error('Failed to fetch course offerings:', err)
       setError(err.message || 'Failed to load course offerings')
     } finally {
-      setLoading(false)
+      if (mySeq === fetchSeqRef.current) setLoading(false)
     }
   }
 

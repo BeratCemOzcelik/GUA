@@ -200,10 +200,6 @@ export const departmentsApi = {
 
 // Course Materials API
 export const courseMaterialsApi = {
-  getMyCourses: async () => {
-    const response = await api.get('/coursematerials/my-courses')
-    return response.data
-  },
   getByCourseOffering: async (courseOfferingId: number) => {
     const response = await api.get(`/CourseMaterials/course-offering/${courseOfferingId}`)
     return response.data

@@ -1,5 +1,6 @@
 using GUA.Core.Entities;
 using GUA.Core.Interfaces;
+using GUA.Infrastructure.Data;
 using GUA.Shared.DTOs.Common;
 using GUA.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,7 @@ public class ApplicationsController : ControllerBase
     private readonly IRepository<StudentProfile> _studentRepository;
     private readonly IRepository<Payment> _paymentRepository;
     private readonly IEmailService _emailService;
+    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<ApplicationsController> _logger;
 
     public ApplicationsController(
@@ -31,6 +33,7 @@ public class ApplicationsController : ControllerBase
         IRepository<StudentProfile> studentRepository,
         IRepository<Payment> paymentRepository,
         IEmailService emailService,
+        ApplicationDbContext dbContext,
         ILogger<ApplicationsController> logger)
     {
         _applicationRepository = applicationRepository;
@@ -40,6 +43,7 @@ public class ApplicationsController : ControllerBase
         _studentRepository = studentRepository;
         _paymentRepository = paymentRepository;
         _emailService = emailService;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -203,19 +207,21 @@ public class ApplicationsController : ControllerBase
 
             var result = new ApplicationApprovalResult { StatusUpdated = true };
 
-            // If approved, auto-create user + student profile + payment plan
+            // If approved, auto-create user + student profile + payment plan (in a transaction)
             if (status == ApplicationStatus.Approved)
             {
+                // Check if user already exists with this email — no auto-creation needed
+                var existingUsers = await _userRepository.FindAsync(u => u.Email == application.ApplicantEmail);
+                if (existingUsers.Any())
+                {
+                    result.UserAlreadyExists = true;
+                    result.Message = "Status updated. A user with this email already exists; auto-creation was skipped.";
+                    return Ok(ApiResponse<ApplicationApprovalResult>.SuccessResult(result));
+                }
+
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
                 try
                 {
-                    // Check if user already exists with this email
-                    var existingUsers = await _userRepository.FindAsync(u => u.Email == application.ApplicantEmail);
-                    if (existingUsers.Any())
-                    {
-                        result.Message = "Status updated. User already exists with this email, skipped auto-creation.";
-                        return Ok(ApiResponse<ApplicationApprovalResult>.SuccessResult(result));
-                    }
-
                     // 1. Generate password
                     var password = GeneratePassword();
 
@@ -285,7 +291,9 @@ public class ApplicationsController : ControllerBase
                         }
                     }
 
-                    // 6. Send welcome email with credentials
+                    await transaction.CommitAsync();
+
+                    // 6. Send welcome email with credentials (only after commit succeeds)
                     _ = _emailService.SendWelcomeEmailAsync(
                         application.ApplicantEmail,
                         $"{application.ApplicantFirstName} {application.ApplicantLastName}",
@@ -302,8 +310,10 @@ public class ApplicationsController : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error auto-creating student for application {AppId}", id);
-                    result.Message = $"Status updated but auto-creation failed: {ex.Message}";
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error auto-creating student for application {AppId}; rolled back", id);
+                    result.AutoCreationFailed = true;
+                    result.Message = $"Status updated but auto-creation failed and was rolled back: {ex.Message}";
                 }
             }
             else
@@ -398,5 +408,7 @@ public class ApplicationApprovalResult
     public string? StudentNumber { get; set; }
     public string? GeneratedPassword { get; set; }
     public bool PaymentPlanCreated { get; set; }
+    public bool UserAlreadyExists { get; set; }
+    public bool AutoCreationFailed { get; set; }
     public string? Message { get; set; }
 }

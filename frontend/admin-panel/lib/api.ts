@@ -632,6 +632,18 @@ export const paymentsApi = {
     const response = await api.get(`/payments${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
+  getStats: async (params?: { studentId?: number; status?: string; search?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.studentId) qs.append('studentId', params.studentId.toString())
+    if (params?.status) qs.append('status', params.status)
+    if (params?.search) qs.append('search', params.search)
+    const response = await api.get(`/payments/stats${qs.toString() ? '?' + qs.toString() : ''}`)
+    return response.data
+  },
+  getEligibleStudents: async () => {
+    const response = await api.get('/payments/eligible-students')
+    return response.data
+  },
   generateInstallments: async (data: { studentId: number; amount: number; currency?: string }) => {
     const response = await api.post('/payments/generate-installments', { currency: 'USD', type: 1, description: 'Tuition', ...data })
     return response.data

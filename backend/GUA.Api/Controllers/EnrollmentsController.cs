@@ -138,6 +138,17 @@ public class EnrollmentsController : ControllerBase
                 return NotFound(ApiResponse<EnrollmentDto>.FailureResult("Enrollment not found"));
             }
 
+            // Ownership check: Students can only access their own enrollments.
+            // Faculty/Admin/SuperAdmin bypass this.
+            if (User.IsInRole("Student") && !(User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("Faculty")))
+            {
+                var ownerCheck = await IsOwnEnrollmentAsync(enrollment.StudentId);
+                if (!ownerCheck)
+                {
+                    return Forbid();
+                }
+            }
+
             var dtos = await MapToEnrollmentDtos(new[] { enrollment });
             return Ok(ApiResponse<EnrollmentDto>.SuccessResult(dtos.First()));
         }
@@ -568,6 +579,16 @@ public class EnrollmentsController : ControllerBase
                 return NotFound(ApiResponse<EnrollmentDto>.FailureResult("Enrollment not found"));
             }
 
+            // Ownership check: Students can only drop their own enrollments.
+            if (User.IsInRole("Student") && !(User.IsInRole("Admin") || User.IsInRole("SuperAdmin") || User.IsInRole("Faculty")))
+            {
+                var ownerCheck = await IsOwnEnrollmentAsync(enrollment.StudentId);
+                if (!ownerCheck)
+                {
+                    return Forbid();
+                }
+            }
+
             if (enrollment.Status != EnrollmentStatus.Enrolled)
             {
                 return BadRequest(ApiResponse<EnrollmentDto>.FailureResult("Can only drop enrolled courses"));
@@ -638,6 +659,18 @@ public class EnrollmentsController : ControllerBase
             return StatusCode(500, ApiResponse<bool>.FailureResult(
                 "An error occurred while deleting the enrollment"));
         }
+    }
+
+    // Returns true if the current authenticated user owns the given student profile.
+    // Used for ownership checks on student-facing endpoints (GetById, DropCourse).
+    private async Task<bool> IsOwnEnrollmentAsync(int enrollmentStudentId)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            return false;
+
+        var myStudent = (await _studentRepository.FindAsync(s => s.UserId == userId)).FirstOrDefault();
+        return myStudent != null && myStudent.Id == enrollmentStudentId;
     }
 
     private async Task<List<EnrollmentDto>> MapToEnrollmentDtos(IEnumerable<Enrollment> enrollments)

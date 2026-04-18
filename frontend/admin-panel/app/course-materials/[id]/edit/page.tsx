@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { courseMaterialsApi, coursesApi } from '@/lib/api'
+import { courseMaterialsApi, coursesApi, courseOfferingsApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -87,13 +87,11 @@ export default function EditCourseMaterialPage() {
         // Fetch course offerings if courseId exists
         if (material.courseId) {
           try {
-            const offeringsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${material.courseId}`, {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              }
+            const offeringsResponse = await courseOfferingsApi.getAll({
+              courseId: material.courseId,
+              pageSize: 1000,
             })
-            const offeringsResult = await offeringsResponse.json()
-            setCourseOfferings(offeringsResult.data || [])
+            setCourseOfferings(offeringsResponse.data?.items || [])
           } catch (err) {
             console.error('Failed to fetch course offerings:', err)
           }
@@ -137,13 +135,11 @@ export default function EditCourseMaterialPage() {
         return
       }
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${selectedCourseId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+        const response = await courseOfferingsApi.getAll({
+          courseId: selectedCourseId,
+          pageSize: 1000,
         })
-        const result = await response.json()
-        setCourseOfferings(result.data || [])
+        setCourseOfferings(response.data?.items || [])
       } catch (err: any) {
         console.error('Failed to fetch course offerings:', err)
         setCourseOfferings([])

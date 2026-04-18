@@ -44,3 +44,12 @@ public class PaymentSummaryDto
     public int PaidInstallments { get; set; }
     public List<PaymentDto> Payments { get; set; } = new();
 }
+
+public class PaymentStatsDto
+{
+    public decimal TotalExpected { get; set; }
+    public decimal TotalCollected { get; set; }
+    public decimal TotalPending { get; set; }
+    public int StudentsWithPlans { get; set; }
+    public int TotalPayments { get; set; }
+}

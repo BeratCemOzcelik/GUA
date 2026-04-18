@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { enrollmentsApi, academicTermsApi } from '@/lib/api'
 import Pagination from '@/components/ui/Pagination'
 import SearchBar from '@/components/ui/SearchBar'
@@ -33,7 +33,10 @@ export default function EnrollmentsPage() {
     } catch {}
   }
 
+  const fetchSeqRef = useRef(0)
+
   const fetchEnrollments = async () => {
+    const mySeq = ++fetchSeqRef.current
     try {
       setIsLoading(true)
       setError('')
@@ -44,13 +47,15 @@ export default function EnrollmentsPage() {
         page,
         pageSize,
       })
+      if (mySeq !== fetchSeqRef.current) return
       const data = res.data
       setEnrollments(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== fetchSeqRef.current) return
       setError(err.response?.data?.message || 'Failed to load enrollments')
     } finally {
-      setIsLoading(false)
+      if (mySeq === fetchSeqRef.current) setIsLoading(false)
     }
   }
 

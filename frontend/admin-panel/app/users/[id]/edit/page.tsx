@@ -11,8 +11,8 @@ import Input from '@/components/ui/Input'
 
 const userSchema = z.object({
   email: z.string().email('Must be a valid email'),
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
   isActive: z.boolean().default(true),
 })
 

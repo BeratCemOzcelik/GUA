@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { applicationsApi, programsApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -67,9 +67,15 @@ export default function ApplicationsPage() {
     password?: string
     paymentPlan?: boolean
     message?: string
+    userAlreadyExists?: boolean
+    autoCreationFailed?: boolean
+    variant?: 'success' | 'warning' | 'error'
   }>({ isOpen: false })
 
+  const fetchSeqRef = useRef(0)
+
   const fetchApplications = async () => {
+    const mySeq = ++fetchSeqRef.current
     try {
       setLoading(true)
       setError(null)
@@ -80,14 +86,16 @@ export default function ApplicationsPage() {
         page,
         pageSize,
       })
+      if (mySeq !== fetchSeqRef.current) return
       const data = response.data
       setApplications(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== fetchSeqRef.current) return
       console.error('Failed to fetch applications:', err)
       setError(err.message || 'Failed to load applications')
     } finally {
-      setLoading(false)
+      if (mySeq === fetchSeqRef.current) setLoading(false)
     }
   }
 
@@ -134,6 +142,21 @@ export default function ApplicationsPage() {
             password: result.generatedPassword,
             paymentPlan: result.paymentPlanCreated,
             message: result.message,
+            variant: 'success',
+          })
+        } else if (result.userAlreadyExists) {
+          setApprovalResult({
+            isOpen: true,
+            userAlreadyExists: true,
+            message: result.message,
+            variant: 'warning',
+          })
+        } else if (result.autoCreationFailed) {
+          setApprovalResult({
+            isOpen: true,
+            autoCreationFailed: true,
+            message: result.message,
+            variant: 'error',
           })
         }
       }
@@ -404,40 +427,84 @@ export default function ApplicationsPage() {
       <Modal
         isOpen={approvalResult.isOpen}
         onClose={() => setApprovalResult({ isOpen: false })}
-        title="Student Account Created"
+        title={
+          approvalResult.variant === 'warning'
+            ? 'User Already Exists'
+            : approvalResult.variant === 'error'
+            ? 'Auto-Creation Failed'
+            : 'Student Account Created'
+        }
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-green-100 rounded-full">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+          <div
+            className={`flex items-center justify-center w-16 h-16 mx-auto rounded-full ${
+              approvalResult.variant === 'warning'
+                ? 'bg-amber-100'
+                : approvalResult.variant === 'error'
+                ? 'bg-red-100'
+                : 'bg-green-100'
+            }`}
+          >
+            {approvalResult.variant === 'warning' ? (
+              <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+              </svg>
+            ) : approvalResult.variant === 'error' ? (
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
           </div>
-          <p className="text-center text-gray-600">{approvalResult.message}</p>
-          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Student Number</span>
-              <span className="font-mono font-bold text-gray-900">{approvalResult.studentNumber}</span>
-            </div>
-            <div className="border-t border-gray-200"></div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Password</span>
-              <span className="font-mono font-bold text-[#8B1A1A]">{approvalResult.password}</span>
-            </div>
-            <div className="border-t border-gray-200"></div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Payment Plan</span>
-              <span
-                className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  approvalResult.paymentPlan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                }`}
-              >
-                {approvalResult.paymentPlan ? '6 Installments Created' : 'No Tuition Fee'}
-              </span>
-            </div>
-          </div>
-          <p className="text-sm text-center text-gray-500">
-            Login credentials have been sent to the student&apos;s email.
-          </p>
+          <p className="text-center text-gray-700">{approvalResult.message}</p>
+
+          {approvalResult.variant === 'success' && (
+            <>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Student Number</span>
+                  <span className="font-mono font-bold text-gray-900">{approvalResult.studentNumber}</span>
+                </div>
+                <div className="border-t border-gray-200"></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Password</span>
+                  <span className="font-mono font-bold text-[#8B1A1A]">{approvalResult.password}</span>
+                </div>
+                <div className="border-t border-gray-200"></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Payment Plan</span>
+                  <span
+                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      approvalResult.paymentPlan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {approvalResult.paymentPlan ? '6 Installments Created' : 'No Tuition Fee'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-center text-gray-500">
+                Login credentials have been sent to the student&apos;s email.
+              </p>
+            </>
+          )}
+
+          {approvalResult.variant === 'warning' && (
+            <p className="text-sm text-center text-gray-500">
+              The application status was updated, but no new student account was created because a user with this email
+              already exists. Check the Users page to link the existing account manually if needed.
+            </p>
+          )}
+
+          {approvalResult.variant === 'error' && (
+            <p className="text-sm text-center text-gray-500">
+              The status was updated, but automatic creation was rolled back. You can retry by switching the status away
+              and back to Approved, or create the student manually.
+            </p>
+          )}
+
           <div className="flex justify-center">
             <Button onClick={() => setApprovalResult({ isOpen: false })}>Close</Button>
           </div>

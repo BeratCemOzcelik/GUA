@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { courseMaterialsApi, coursesApi } from '@/lib/api'
+import { courseMaterialsApi, coursesApi, courseOfferingsApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -71,13 +71,11 @@ export default function CreateCourseMaterialPage() {
         return
       }
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courseofferings?courseId=${selectedCourseId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+        const response = await courseOfferingsApi.getAll({
+          courseId: selectedCourseId,
+          pageSize: 1000,
         })
-        const result = await response.json()
-        setCourseOfferings(result.data || [])
+        setCourseOfferings(response.data?.items || [])
       } catch (err: any) {
         console.error('Failed to fetch course offerings:', err)
         setCourseOfferings([])

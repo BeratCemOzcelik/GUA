@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { paymentsApi, studentProfilesApi, programsApi } from '@/lib/api'
 import Pagination from '@/components/ui/Pagination'
 import SearchBar from '@/components/ui/SearchBar'
@@ -36,30 +36,51 @@ interface Program {
   tuitionFee: number
 }
 
+interface PaymentStats {
+  totalExpected: number
+  totalCollected: number
+  totalPending: number
+  studentsWithPlans: number
+  totalPayments: number
+}
+
 const PAYMENT_STATUSES = ['Pending', 'Completed', 'Failed', 'Cancelled']
+const EMPTY_STATS: PaymentStats = {
+  totalExpected: 0,
+  totalCollected: 0,
+  totalPending: 0,
+  studentsWithPlans: 0,
+  totalPayments: 0,
+}
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<PaymentDto[]>([])
   const [totalCount, setTotalCount] = useState(0)
-  const [statsPayments, setStatsPayments] = useState<PaymentDto[]>([])
+  const [stats, setStats] = useState<PaymentStats>(EMPTY_STATS)
+  const [eligibleStudentIds, setEligibleStudentIds] = useState<number[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Generate installments form
   const [showForm, setShowForm] = useState(false)
   const [selectedStudentId, setSelectedStudentId] = useState<number>(0)
   const [customAmount, setCustomAmount] = useState<number>(0)
   const [generating, setGenerating] = useState(false)
 
-  // Filters
+  const [checkingStatusId, setCheckingStatusId] = useState<number | null>(null)
+  const [deletingStudentId, setDeletingStudentId] = useState<number | null>(null)
+
   const [filterStudentId, setFilterStudentId] = useState<number | undefined>()
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+
+  // Request sequence tokens to discard stale responses (race condition guard)
+  const paymentsSeqRef = useRef(0)
+  const statsSeqRef = useRef(0)
 
   useEffect(() => {
     loadMetadata()
@@ -77,12 +98,14 @@ export default function PaymentsPage() {
   const loadMetadata = async () => {
     try {
       setIsLoading(true)
-      const [studentsRes, programsRes] = await Promise.all([
+      const [studentsRes, programsRes, eligibleRes] = await Promise.all([
         studentProfilesApi.getAll(),
         programsApi.getAll(),
+        paymentsApi.getEligibleStudents(),
       ])
       setStudents(studentsRes.data || [])
       setPrograms(programsRes.data || [])
+      setEligibleStudentIds(eligibleRes.data || [])
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load data')
     } finally {
@@ -91,6 +114,7 @@ export default function PaymentsPage() {
   }
 
   const loadPayments = async () => {
+    const mySeq = ++paymentsSeqRef.current
     try {
       const res = await paymentsApi.getAll({
         studentId: filterStudentId,
@@ -99,27 +123,37 @@ export default function PaymentsPage() {
         page,
         pageSize,
       })
+      if (mySeq !== paymentsSeqRef.current) return // discard stale response
       const data = res.data
       setPayments(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== paymentsSeqRef.current) return
       setError(err.response?.data?.message || 'Failed to load payments')
     }
   }
 
   const loadStats = async () => {
+    const mySeq = ++statsSeqRef.current
     try {
-      // Stats across the filtered dataset (no pagination)
-      const res = await paymentsApi.getAll({
+      const res = await paymentsApi.getStats({
         studentId: filterStudentId,
         status: filterStatus || undefined,
         search: search || undefined,
-        pageSize: 1000,
       })
-      setStatsPayments(res.data?.items || [])
+      if (mySeq !== statsSeqRef.current) return
+      setStats(res.data || EMPTY_STATS)
     } catch {
-      setStatsPayments([])
+      if (mySeq !== statsSeqRef.current) return
+      setStats(EMPTY_STATS)
     }
+  }
+
+  const refreshEligible = async () => {
+    try {
+      const res = await paymentsApi.getEligibleStudents()
+      setEligibleStudentIds(res.data || [])
+    } catch {}
   }
 
   const handleStudentSelect = (studentId: number) => {
@@ -132,7 +166,7 @@ export default function PaymentsPage() {
   }
 
   const handleGenerate = async () => {
-    if (!selectedStudentId || customAmount <= 0) return
+    if (!selectedStudentId || customAmount <= 0 || generating) return
     try {
       setGenerating(true)
       setError('')
@@ -144,8 +178,7 @@ export default function PaymentsPage() {
       setShowForm(false)
       setSelectedStudentId(0)
       setCustomAmount(0)
-      await loadPayments()
-      await loadStats()
+      await Promise.all([loadPayments(), loadStats(), refreshEligible()])
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to generate installments')
     } finally {
@@ -154,24 +187,30 @@ export default function PaymentsPage() {
   }
 
   const handleCheckStatus = async (paymentId: number) => {
+    if (checkingStatusId !== null) return // guard against double-click
     try {
+      setCheckingStatusId(paymentId)
       await paymentsApi.checkStatus(paymentId)
-      await loadPayments()
-      await loadStats()
+      await Promise.all([loadPayments(), loadStats()])
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to check status')
+    } finally {
+      setCheckingStatusId(null)
     }
   }
 
   const handleDeleteStudentPayments = async (studentId: number) => {
+    if (deletingStudentId !== null) return
     if (!confirm('Are you sure you want to delete all payments for this student?')) return
     try {
+      setDeletingStudentId(studentId)
       await paymentsApi.deleteStudentPayments(studentId)
       setSuccess('Payments deleted')
-      await loadPayments()
-      await loadStats()
+      await Promise.all([loadPayments(), loadStats(), refreshEligible()])
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to delete payments')
+    } finally {
+      setDeletingStudentId(null)
     }
   }
 
@@ -185,19 +224,8 @@ export default function PaymentsPage() {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  // Stats computed from statsPayments
-  const totalExpected = statsPayments.reduce((sum, p) => sum + p.amount, 0)
-  const totalCollected = statsPayments
-    .filter((p) => p.status === 'Completed')
-    .reduce((sum, p) => sum + p.amount, 0)
-  const totalPending = statsPayments
-    .filter((p) => p.status === 'Pending')
-    .reduce((sum, p) => sum + p.amount, 0)
-  const studentsWithPlans = new Set(statsPayments.map((p) => p.studentId)).size
-
-  const studentsWithoutPayments = students.filter(
-    (s) => !statsPayments.some((p) => p.studentId === s.id)
-  )
+  // Eligible students come from the unfiltered server-side endpoint (filter-independent)
+  const studentsWithoutPayments = students.filter((s) => eligibleStudentIds.includes(s.id))
 
   if (isLoading) {
     return (
@@ -259,6 +287,9 @@ export default function PaymentsPage() {
                   </option>
                 ))}
               </select>
+              {studentsWithoutPayments.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1">All students already have payment plans.</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount (USD)</label>
@@ -322,23 +353,23 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Summary Stats (reflect current filters) */}
+      {/* Summary Stats (server-side, reflects current filters) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total Expected</p>
-          <p className="text-2xl font-bold text-gray-900">${totalExpected.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-gray-900">${stats.totalExpected.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total Collected</p>
-          <p className="text-2xl font-bold text-green-600">${totalCollected.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-green-600">${stats.totalCollected.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">${totalPending.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-yellow-600">${stats.totalPending.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Students with Plans</p>
-          <p className="text-2xl font-bold text-gray-900">{studentsWithPlans}</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.studentsWithPlans}</p>
         </div>
       </div>
 
@@ -366,6 +397,8 @@ export default function PaymentsPage() {
             ) : (
               payments.map((payment) => {
                 const isOverdue = payment.status === 'Pending' && new Date(payment.dueDate) < new Date()
+                const isChecking = checkingStatusId === payment.id
+                const isDeleting = deletingStudentId === payment.studentId
                 return (
                   <tr key={payment.id} className={isOverdue ? 'bg-red-50' : ''}>
                     <td className="px-4 py-3">
@@ -399,17 +432,19 @@ export default function PaymentsPage() {
                         {payment.status === 'Pending' && (
                           <button
                             onClick={() => handleCheckStatus(payment.id)}
-                            className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                            disabled={isChecking}
+                            className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Check Status
+                            {isChecking ? 'Checking...' : 'Check Status'}
                           </button>
                         )}
                         {payment.installmentNumber === 1 && (
                           <button
                             onClick={() => handleDeleteStudentPayments(payment.studentId)}
-                            className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            disabled={isDeleting}
+                            className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Delete All
+                            {isDeleting ? 'Deleting...' : 'Delete All'}
                           </button>
                         )}
                       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { courseMaterialsApi, coursesApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
@@ -61,7 +61,10 @@ export default function CourseMaterialsPage() {
     }
   }
 
+  const fetchSeqRef = useRef(0)
+
   const fetchMaterials = async () => {
+    const mySeq = ++fetchSeqRef.current
     try {
       setLoading(true)
       setError(null)
@@ -71,14 +74,16 @@ export default function CourseMaterialsPage() {
         page,
         pageSize,
       })
+      if (mySeq !== fetchSeqRef.current) return
       const data = response.data
       setMaterials(data?.items || [])
       setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
+      if (mySeq !== fetchSeqRef.current) return
       console.error('Failed to fetch course materials:', err)
       setError(err.message || 'Failed to load course materials')
     } finally {
-      setLoading(false)
+      if (mySeq === fetchSeqRef.current) setLoading(false)
     }
   }
 
