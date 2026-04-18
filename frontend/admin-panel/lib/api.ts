@@ -288,8 +288,20 @@ export const galleryApi = {
 
 // Users API
 export const usersApi = {
-  getAll: async () => {
-    const response = await api.get('/users')
+  getAll: async (params?: {
+    role?: string
+    isActive?: boolean
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.role) qs.append('role', params.role)
+    if (params?.isActive !== undefined) qs.append('isActive', params.isActive.toString())
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/users${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   getById: async (id: string) => {
@@ -320,8 +332,18 @@ export const usersApi = {
 
 // Course Materials API
 export const courseMaterialsApi = {
-  getAll: async () => {
-    const response = await api.get('/coursematerials')
+  getAll: async (params?: {
+    courseId?: number
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.courseId) qs.append('courseId', params.courseId.toString())
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/coursematerials${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   getById: async (id: number) => {
@@ -416,11 +438,22 @@ export const academicTermsApi = {
 
 // Course Offerings API
 export const courseOfferingsApi = {
-  getAll: async (termId?: number, courseId?: number) => {
-    const params = new URLSearchParams()
-    if (termId) params.append('termId', termId.toString())
-    if (courseId) params.append('courseId', courseId.toString())
-    const response = await api.get(`/courseofferings${params.toString() ? '?' + params.toString() : ''}`)
+  getAll: async (params?: {
+    termId?: number
+    courseId?: number
+    facultyProfileId?: number
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.termId) qs.append('termId', params.termId.toString())
+    if (params?.courseId) qs.append('courseId', params.courseId.toString())
+    if (params?.facultyProfileId) qs.append('facultyProfileId', params.facultyProfileId.toString())
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/courseofferings${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   getById: async (id: number) => {
@@ -443,8 +476,20 @@ export const courseOfferingsApi = {
 
 // Applications API
 export const applicationsApi = {
-  getAll: async () => {
-    const response = await api.get('/applications')
+  getAll: async (params?: {
+    status?: string
+    programId?: number
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.append('status', params.status)
+    if (params?.programId) qs.append('programId', params.programId.toString())
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/applications${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   updateStatus: async (id: number, data: { status: string; rejectionReason?: string }) => {
@@ -463,12 +508,24 @@ export const auditLogsApi = {
 
 // Enrollments API
 export const enrollmentsApi = {
-  getAll: async (studentId?: number, courseOfferingId?: number, status?: string) => {
-    const params = new URLSearchParams()
-    if (studentId) params.append('studentId', studentId.toString())
-    if (courseOfferingId) params.append('courseOfferingId', courseOfferingId.toString())
-    if (status) params.append('status', status)
-    const response = await api.get(`/enrollments${params.toString() ? '?' + params.toString() : ''}`)
+  getAll: async (params?: {
+    studentId?: number
+    courseOfferingId?: number
+    status?: string
+    termId?: number
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.studentId) qs.append('studentId', params.studentId.toString())
+    if (params?.courseOfferingId) qs.append('courseOfferingId', params.courseOfferingId.toString())
+    if (params?.status) qs.append('status', params.status)
+    if (params?.termId) qs.append('termId', params.termId.toString())
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/enrollments${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   getById: async (id: number) => {
@@ -559,10 +616,20 @@ export const studentProfilesApi = {
 
 // Payments API
 export const paymentsApi = {
-  getAll: async (studentId?: number) => {
-    const params = new URLSearchParams()
-    if (studentId) params.append('studentId', studentId.toString())
-    const response = await api.get(`/payments${params.toString() ? '?' + params.toString() : ''}`)
+  getAll: async (params?: {
+    studentId?: number
+    status?: string
+    search?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.studentId) qs.append('studentId', params.studentId.toString())
+    if (params?.status) qs.append('status', params.status)
+    if (params?.search) qs.append('search', params.search)
+    if (params?.page) qs.append('page', params.page.toString())
+    if (params?.pageSize) qs.append('pageSize', params.pageSize.toString())
+    const response = await api.get(`/payments${qs.toString() ? '?' + qs.toString() : ''}`)
     return response.data
   },
   generateInstallments: async (data: { studentId: number; amount: number; currency?: string }) => {

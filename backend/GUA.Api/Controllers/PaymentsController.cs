@@ -42,31 +42,71 @@ public class PaymentsController : ControllerBase
     // GET: api/payments
     [HttpGet]
     [Authorize(Roles = "Admin,SuperAdmin")]
-    public async Task<ActionResult<ApiResponse<List<PaymentDto>>>> GetAll([FromQuery] int? studentId)
+    public async Task<ActionResult<ApiResponse<PagedResult<PaymentDto>>>> GetAll(
+        [FromQuery] int? studentId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var allPayments = studentId.HasValue
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
+
+            var allPayments = (studentId.HasValue
                 ? await _repository.FindAsync(p => p.StudentId == studentId.Value)
-                : await _repository.GetAllAsync();
+                : await _repository.GetAllAsync()).ToList();
 
-            var students = await _studentRepository.GetAllAsync();
-            var users = await _userRepository.GetAllAsync();
+            if (!string.IsNullOrWhiteSpace(status)
+                && Enum.TryParse<PaymentStatus>(status, true, out var statusEnum))
+            {
+                allPayments = allPayments.Where(p => p.Status == (int)statusEnum).ToList();
+            }
 
-            var dtos = allPayments.OrderBy(p => p.StudentId).ThenBy(p => p.InstallmentNumber)
-                .Select(p =>
+            var students = (await _studentRepository.GetAllAsync()).ToList();
+            var users = (await _userRepository.GetAllAsync()).ToList();
+            var studentDict = students.ToDictionary(s => s.Id);
+            var userDict = users.ToDictionary(u => u.Id);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                allPayments = allPayments.Where(p =>
                 {
-                    var student = students.FirstOrDefault(s => s.Id == p.StudentId);
-                    var user = student != null ? users.FirstOrDefault(u => u.Id == student.UserId) : null;
-                    return MapToDto(p, student, user);
+                    var student = studentDict.GetValueOrDefault(p.StudentId);
+                    if (student == null) return false;
+                    var user = userDict.GetValueOrDefault(student.UserId);
+                    var fullName = user != null ? $"{user.FirstName} {user.LastName}".ToLowerInvariant() : "";
+                    return fullName.Contains(term)
+                        || (student.StudentNumber ?? "").ToLowerInvariant().Contains(term)
+                        || (p.Description ?? "").ToLowerInvariant().Contains(term);
                 }).ToList();
+            }
 
-            return Ok(ApiResponse<List<PaymentDto>>.SuccessResult(dtos));
+            var totalCount = allPayments.Count;
+
+            var paged = allPayments
+                .OrderBy(p => p.StudentId).ThenBy(p => p.InstallmentNumber)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var dtos = paged.Select(p =>
+            {
+                var student = studentDict.GetValueOrDefault(p.StudentId);
+                var user = student != null ? userDict.GetValueOrDefault(student.UserId) : null;
+                return MapToDto(p, student, user);
+            }).ToList();
+
+            var result = PagedResult<PaymentDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<PaymentDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting payments");
-            return StatusCode(500, ApiResponse<List<PaymentDto>>.FailureResult("Failed to retrieve payments"));
+            return StatusCode(500, ApiResponse<PagedResult<PaymentDto>>.FailureResult("Failed to retrieve payments"));
         }
     }
 

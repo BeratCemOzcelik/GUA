@@ -2,14 +2,29 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { courseOfferingsApi, academicTermsApi } from '@/lib/api'
+import { courseOfferingsApi, academicTermsApi, coursesApi, facultyApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import Pagination from '@/components/ui/Pagination'
+import SearchBar from '@/components/ui/SearchBar'
 
 interface AcademicTerm {
   id: number
   name: string
   code: string
+}
+
+interface Course {
+  id: number
+  name: string
+  code: string
+}
+
+interface Faculty {
+  id: number
+  fullName?: string
+  firstName?: string
+  lastName?: string
 }
 
 interface CourseOffering {
@@ -35,8 +50,18 @@ interface CourseOffering {
 
 export default function CourseOfferingsPage() {
   const [offerings, setOfferings] = useState<CourseOffering[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [terms, setTerms] = useState<AcademicTerm[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
+  const [faculties, setFaculties] = useState<Faculty[]>([])
+
   const [selectedTermId, setSelectedTermId] = useState<number | undefined>()
+  const [selectedCourseId, setSelectedCourseId] = useState<number | undefined>()
+  const [selectedFacultyId, setSelectedFacultyId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{
@@ -50,12 +75,18 @@ export default function CourseOfferingsPage() {
   })
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const fetchTerms = async () => {
+  const fetchFilterData = async () => {
     try {
-      const response = await academicTermsApi.getAll()
-      setTerms(response.data || [])
-    } catch (err: any) {
-      console.error('Failed to fetch terms:', err)
+      const [termRes, courseRes, facultyRes] = await Promise.all([
+        academicTermsApi.getAll(),
+        coursesApi.getAll(),
+        facultyApi.getAll(),
+      ])
+      setTerms(termRes.data || [])
+      setCourses(courseRes.data || [])
+      setFaculties(facultyRes.data || [])
+    } catch (err) {
+      console.error('Failed to fetch filter data:', err)
     }
   }
 
@@ -63,8 +94,17 @@ export default function CourseOfferingsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await courseOfferingsApi.getAll(selectedTermId)
-      setOfferings(response.data || [])
+      const response = await courseOfferingsApi.getAll({
+        termId: selectedTermId,
+        courseId: selectedCourseId,
+        facultyProfileId: selectedFacultyId,
+        search: search || undefined,
+        page,
+        pageSize,
+      })
+      const data = response.data
+      setOfferings(data?.items || [])
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       console.error('Failed to fetch course offerings:', err)
       setError(err.message || 'Failed to load course offerings')
@@ -74,12 +114,17 @@ export default function CourseOfferingsPage() {
   }
 
   useEffect(() => {
-    fetchTerms()
+    fetchFilterData()
   }, [])
 
   useEffect(() => {
     fetchOfferings()
-  }, [selectedTermId])
+  }, [selectedTermId, selectedCourseId, selectedFacultyId, search, page, pageSize])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [selectedTermId, selectedCourseId, selectedFacultyId, search, pageSize])
 
   const handleDelete = async () => {
     if (!deleteModal.offeringId) return
@@ -110,6 +155,9 @@ export default function CourseOfferingsPage() {
     )
   }
 
+  const facultyLabel = (f: Faculty) =>
+    f.fullName || `${f.firstName || ''} ${f.lastName || ''}`.trim() || `Faculty #${f.id}`
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,10 +174,14 @@ export default function CourseOfferingsPage() {
         </Link>
       </div>
 
-      {/* Filter */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-        <div className="flex items-center space-x-4">
-          <label className="text-sm font-medium text-gray-700">Filter by Term:</label>
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-3">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by course, code, section, or faculty..."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <select
             value={selectedTermId || ''}
             onChange={(e) => setSelectedTermId(e.target.value ? Number(e.target.value) : undefined)}
@@ -139,6 +191,30 @@ export default function CourseOfferingsPage() {
             {terms.map((term) => (
               <option key={term.id} value={term.id}>
                 {term.name} ({term.code})
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedCourseId || ''}
+            onChange={(e) => setSelectedCourseId(e.target.value ? Number(e.target.value) : undefined)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Courses</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} - {c.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedFacultyId || ''}
+            onChange={(e) => setSelectedFacultyId(e.target.value ? Number(e.target.value) : undefined)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Faculty</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {facultyLabel(f)}
               </option>
             ))}
           </select>
@@ -169,106 +245,115 @@ export default function CourseOfferingsPage() {
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Course
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Term
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Faculty
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Section
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Schedule
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Capacity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {offerings.map((offering) => (
-                  <tr key={offering.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <span className="font-mono text-sm font-medium text-gray-900 block">
-                          {offering.courseCode}
-                        </span>
-                        <span className="text-sm text-gray-600">{offering.courseName}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{offering.termName}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-900">{offering.facultyName || 'N/A'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{offering.section}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{offering.schedule || '-'}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{offering.location || '-'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getAvailabilityBadge(offering.enrolledCount, offering.capacity)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          offering.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {offering.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Link href={`/course-offerings/${offering.id}/edit`}>
-                          <Button variant="secondary" size="sm">
-                            ✏️ Edit
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            setDeleteModal({
-                              isOpen: true,
-                              offeringId: offering.id,
-                              offeringName: `${offering.courseCode} - ${offering.section}`,
-                            })
-                          }
-                        >
-                          🗑️ Delete
-                        </Button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Course
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Term
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Faculty
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Section
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Schedule
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Capacity
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {offerings.map((offering) => (
+                    <tr key={offering.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <span className="font-mono text-sm font-medium text-gray-900 block">
+                            {offering.courseCode}
+                          </span>
+                          <span className="text-sm text-gray-600">{offering.courseName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">{offering.termName}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-900">{offering.facultyName || 'N/A'}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">{offering.section}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600">{offering.schedule || '-'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600">{offering.location || '-'}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getAvailabilityBadge(offering.enrolledCount, offering.capacity)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            offering.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {offering.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <Link href={`/course-offerings/${offering.id}/edit`}>
+                            <Button variant="secondary" size="sm">
+                              ✏️ Edit
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() =>
+                              setDeleteModal({
+                                isOpen: true,
+                                offeringId: offering.id,
+                                offeringName: `${offering.courseCode} - ${offering.section}`,
+                              })
+                            }
+                          >
+                            🗑️ Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </div>
 

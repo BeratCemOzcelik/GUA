@@ -37,49 +37,66 @@ public class CourseOfferingsController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<IEnumerable<CourseOfferingDto>>>> GetAll(
+    public async Task<ActionResult<ApiResponse<PagedResult<CourseOfferingDto>>>> GetAll(
         [FromQuery] int? termId = null,
-        [FromQuery] int? courseId = null)
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? facultyProfileId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var offerings = await _repository.GetAllAsync();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
 
-            // Filter by term if provided
+            var offerings = (await _repository.GetAllAsync()).ToList();
+
             if (termId.HasValue)
-            {
                 offerings = offerings.Where(o => o.TermId == termId.Value).ToList();
-            }
 
-            // Filter by course if provided
             if (courseId.HasValue)
-            {
                 offerings = offerings.Where(o => o.CourseId == courseId.Value).ToList();
-            }
 
-            // Load related entities
-            var courseIds = offerings.Select(o => o.CourseId).Distinct();
-            var termIds = offerings.Select(o => o.TermId).Distinct();
-            var facultyIds = offerings.Select(o => o.FacultyProfileId).Distinct();
+            if (facultyProfileId.HasValue)
+                offerings = offerings.Where(o => o.FacultyProfileId == facultyProfileId.Value).ToList();
 
+            // Load related entities (needed for both search and response)
             var courses = await _courseRepository.GetAllAsync();
             var terms = await _termRepository.GetAllAsync();
             var faculties = await _facultyRepository.GetAllAsync();
-
-            var courseDict = courses.Where(c => courseIds.Contains(c.Id))
-                .ToDictionary(c => c.Id, c => (c.Name, c.Code));
-            var termDict = terms.Where(t => termIds.Contains(t.Id))
-                .ToDictionary(t => t.Id, t => (t.Name, t.Code));
-            var facultyDict = faculties.Where(f => facultyIds.Contains(f.Id))
-                .ToDictionary(f => f.Id);
-
-            // Get user info for faculty
-            var facultyUserIds = facultyDict.Values.Select(f => f.UserId).Distinct();
             var users = await _userRepository.GetAllAsync();
-            var userDict = users.Where(u => facultyUserIds.Contains(u.Id))
-                .ToDictionary(u => u.Id, u => $"{u.FirstName} {u.LastName}");
 
-            var dtos = offerings.Select(o =>
+            var courseDict = courses.ToDictionary(c => c.Id, c => (c.Name, c.Code));
+            var termDict = terms.ToDictionary(t => t.Id, t => (t.Name, t.Code));
+            var facultyDict = faculties.ToDictionary(f => f.Id);
+            var userDict = users.ToDictionary(u => u.Id, u => $"{u.FirstName} {u.LastName}");
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                offerings = offerings.Where(o =>
+                {
+                    var (cName, cCode) = courseDict.GetValueOrDefault(o.CourseId, ("", ""));
+                    var faculty = facultyDict.GetValueOrDefault(o.FacultyProfileId);
+                    var facultyName = faculty != null ? userDict.GetValueOrDefault(faculty.UserId, "") : "";
+                    return cName.ToLowerInvariant().Contains(term)
+                        || cCode.ToLowerInvariant().Contains(term)
+                        || (o.Section ?? "").ToLowerInvariant().Contains(term)
+                        || facultyName.ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var totalCount = offerings.Count;
+
+            var pagedOfferings = offerings
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var dtos = pagedOfferings.Select(o =>
             {
                 var (courseName, courseCode) = courseDict.GetValueOrDefault(o.CourseId, ("Unknown", ""));
                 var (termName, termCode) = termDict.GetValueOrDefault(o.TermId, ("Unknown", ""));
@@ -109,12 +126,13 @@ public class CourseOfferingsController : ControllerBase
                 };
             });
 
-            return Ok(ApiResponse<IEnumerable<CourseOfferingDto>>.SuccessResult(dtos));
+            var result = PagedResult<CourseOfferingDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<CourseOfferingDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving course offerings");
-            return StatusCode(500, ApiResponse<IEnumerable<CourseOfferingDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<CourseOfferingDto>>.FailureResult(
                 "An error occurred while retrieving course offerings"));
         }
     }

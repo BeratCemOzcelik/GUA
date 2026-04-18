@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usersApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import Pagination from '@/components/ui/Pagination'
+import SearchBar from '@/components/ui/SearchBar'
 
 interface User {
   id: string
@@ -16,8 +18,18 @@ interface User {
   createdAt: string
 }
 
+const ROLE_OPTIONS = ['SuperAdmin', 'Admin', 'Faculty', 'Student']
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+
+  const [role, setRole] = useState<string>('')
+  const [isActive, setIsActive] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{
@@ -35,8 +47,16 @@ export default function UsersPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await usersApi.getAll()
-      setUsers(response.data || [])
+      const response = await usersApi.getAll({
+        role: role || undefined,
+        isActive: isActive === '' ? undefined : isActive === 'true',
+        search: search || undefined,
+        page,
+        pageSize,
+      })
+      const data = response.data
+      setUsers(data?.items || [])
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       console.error('Failed to fetch users:', err)
       setError(err.message || 'Failed to load users')
@@ -47,7 +67,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers()
-  }, [])
+  }, [role, isActive, search, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [role, isActive, search, pageSize])
 
   const handleDelete = async () => {
     if (!deleteModal.userId) return
@@ -81,6 +105,38 @@ export default function UsersPage() {
         </Link>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-3">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or email..."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Roles</option>
+            {ROLE_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select
+            value={isActive}
+            onChange={(e) => setIsActive(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Statuses</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
@@ -102,104 +158,93 @@ export default function UsersPage() {
             <p className="text-gray-500 text-lg">No users found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Roles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-[#8B1A1A] rounded-full flex items-center justify-center text-white font-bold mr-3">
-                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                        </div>
-                        <span className="font-medium text-gray-900">
-                          {user.firstName} {user.lastName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {user.email}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {user.roles.map((role) => (
-                          <span
-                            key={role}
-                            className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
-                          >
-                            {role}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {user.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Link href={`/users/${user.id}/edit`}>
-                          <Button variant="secondary" size="sm">
-                            ✏️ Edit
-                          </Button>
-                        </Link>
-                        <Link href={`/users/${user.id}/roles`}>
-                          <Button variant="secondary" size="sm">
-                            🔑 Roles
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            setDeleteModal({
-                              isOpen: true,
-                              userId: user.id,
-                              userName: `${user.firstName} ${user.lastName}`,
-                            })
-                          }
-                        >
-                          🗑️ Delete
-                        </Button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-[#8B1A1A] rounded-full flex items-center justify-center text-white font-bold mr-3">
+                            {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            {user.firstName} {user.lastName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {user.roles.map((r) => (
+                            <span
+                              key={r}
+                              className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                            >
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <Link href={`/users/${user.id}/edit`}>
+                            <Button variant="secondary" size="sm">✏️ Edit</Button>
+                          </Link>
+                          <Link href={`/users/${user.id}/roles`}>
+                            <Button variant="secondary" size="sm">🔑 Roles</Button>
+                          </Link>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() =>
+                              setDeleteModal({
+                                isOpen: true,
+                                userId: user.id,
+                                userName: `${user.firstName} ${user.lastName}`,
+                              })
+                            }
+                          >
+                            🗑️ Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </div>
 
@@ -217,9 +262,7 @@ export default function UsersPage() {
           <div className="flex items-center justify-end space-x-3">
             <Button
               variant="secondary"
-              onClick={() =>
-                setDeleteModal({ isOpen: false, userId: null, userName: '' })
-              }
+              onClick={() => setDeleteModal({ isOpen: false, userId: null, userName: '' })}
             >
               Cancel
             </Button>

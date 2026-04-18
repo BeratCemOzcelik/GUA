@@ -80,8 +80,8 @@ export default function EditFacultyPage() {
       try {
         setIsLoading(true)
         // Fetch users
-        const usersResponse = await usersApi.getAll()
-        setUsers(usersResponse.data || [])
+        const usersResponse = await usersApi.getAll({ pageSize: 1000 })
+        setUsers(usersResponse.data?.items || [])
 
         // Fetch faculty profile
         const facultyResponse = await facultyApi.getById(facultyId)

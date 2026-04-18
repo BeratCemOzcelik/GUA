@@ -38,33 +38,62 @@ public class CourseMaterialsController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<IEnumerable<CourseMaterialDto>>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PagedResult<CourseMaterialDto>>>> GetAll(
+        [FromQuery] int? courseId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var materials = await _repository.GetAllAsync();
-            var dtos = new List<CourseMaterialDto>();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
 
-            var courseIds = materials.Select(m => m.CourseId).Distinct().ToList();
-            var courses = await _courseRepository.FindAsync(c => courseIds.Contains(c.Id));
+            var materials = (await _repository.GetAllAsync()).ToList();
+
+            if (courseId.HasValue)
+                materials = materials.Where(m => m.CourseId == courseId.Value).ToList();
+
+            var courses = await _courseRepository.GetAllAsync();
             var courseDictionary = courses.ToDictionary(c => c.Id);
 
-            var facultyIds = materials.Select(m => m.UploadedByFacultyId).Distinct().ToList();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                materials = materials.Where(m =>
+                {
+                    var course = courseDictionary.GetValueOrDefault(m.CourseId);
+                    return m.Title.ToLowerInvariant().Contains(term)
+                        || (m.Description ?? "").ToLowerInvariant().Contains(term)
+                        || (course?.Name ?? "").ToLowerInvariant().Contains(term)
+                        || (course?.Code ?? "").ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var totalCount = materials.Count;
+
+            var pagedMaterials = materials
+                .OrderByDescending(m => m.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var facultyIds = pagedMaterials.Select(m => m.UploadedByFacultyId).Distinct().ToList();
             var faculties = await _facultyProfileRepository.FindAsync(f => facultyIds.Contains(f.Id));
+            var facultyDictionary = faculties.ToDictionary(f => f.Id);
 
             var userIds = faculties.Select(f => f.UserId).Distinct().ToList();
             var users = await _userRepository.FindAsync(u => userIds.Contains(u.Id));
             var userDictionary = users.ToDictionary(u => u.Id);
 
-            var facultyDictionary = faculties.ToDictionary(f => f.Id);
-
-            foreach (var material in materials)
+            var dtos = pagedMaterials.Select(material =>
             {
                 var course = courseDictionary.GetValueOrDefault(material.CourseId);
                 var faculty = facultyDictionary.GetValueOrDefault(material.UploadedByFacultyId);
                 var user = faculty != null ? userDictionary.GetValueOrDefault(faculty.UserId) : null;
 
-                dtos.Add(new CourseMaterialDto
+                return new CourseMaterialDto
                 {
                     Id = material.Id,
                     CourseId = material.CourseId,
@@ -79,15 +108,16 @@ public class CourseMaterialsController : ControllerBase
                     UploadedByUserName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : string.Empty,
                     IsActive = material.IsActive,
                     CreatedAt = material.CreatedAt
-                });
-            }
+                };
+            });
 
-            return Ok(ApiResponse<IEnumerable<CourseMaterialDto>>.SuccessResult(dtos));
+            var result = PagedResult<CourseMaterialDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<CourseMaterialDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving course materials");
-            return StatusCode(500, ApiResponse<IEnumerable<CourseMaterialDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<CourseMaterialDto>>.FailureResult(
                 "An error occurred while retrieving course materials"));
         }
     }

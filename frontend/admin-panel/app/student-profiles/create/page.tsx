@@ -65,12 +65,8 @@ export default function CreateStudentProfilePage() {
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true)
-        const response = await usersApi.getAll()
-        // Filter users with Student role
-        const studentUsers = (response.data || []).filter((user: User) =>
-          user.roles.includes('Student')
-        )
-        setUsers(studentUsers)
+        const response = await usersApi.getAll({ role: 'Student', pageSize: 1000 })
+        setUsers(response.data?.items || [])
       } catch (err: any) {
         console.error('Failed to fetch users:', err)
       } finally {

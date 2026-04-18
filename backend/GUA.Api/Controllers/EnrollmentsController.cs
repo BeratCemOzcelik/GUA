@@ -52,14 +52,22 @@ public class EnrollmentsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "Admin,SuperAdmin,Faculty")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<EnrollmentDto>>>> GetAll(
+    public async Task<ActionResult<ApiResponse<PagedResult<EnrollmentDto>>>> GetAll(
         [FromQuery] int? studentId = null,
         [FromQuery] int? courseOfferingId = null,
-        [FromQuery] EnrollmentStatus? status = null)
+        [FromQuery] EnrollmentStatus? status = null,
+        [FromQuery] int? termId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var enrollments = await _repository.GetAllAsync();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
+
+            var enrollments = (await _repository.GetAllAsync()).ToList();
 
             if (studentId.HasValue)
                 enrollments = enrollments.Where(e => e.StudentId == studentId.Value).ToList();
@@ -70,14 +78,51 @@ public class EnrollmentsController : ControllerBase
             if (status.HasValue)
                 enrollments = enrollments.Where(e => e.Status == status.Value).ToList();
 
-            var dtos = await MapToEnrollmentDtos(enrollments);
+            if (termId.HasValue)
+            {
+                var offeringsForTerm = (await _offeringRepository.GetAllAsync())
+                    .Where(o => o.TermId == termId.Value)
+                    .Select(o => o.Id)
+                    .ToHashSet();
+                enrollments = enrollments.Where(e => offeringsForTerm.Contains(e.CourseOfferingId)).ToList();
+            }
 
-            return Ok(ApiResponse<IEnumerable<EnrollmentDto>>.SuccessResult(dtos));
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                var allStudents = await _studentRepository.GetAllAsync();
+                var allUsers = await _userRepository.GetAllAsync();
+                var userDict = allUsers.ToDictionary(u => u.Id);
+                var studentDict = allStudents.ToDictionary(s => s.Id);
+
+                enrollments = enrollments.Where(e =>
+                {
+                    var student = studentDict.GetValueOrDefault(e.StudentId);
+                    if (student == null) return false;
+                    var user = userDict.GetValueOrDefault(student.UserId);
+                    var fullName = user != null ? $"{user.FirstName} {user.LastName}".ToLowerInvariant() : "";
+                    return fullName.Contains(term)
+                        || (student.StudentNumber ?? "").ToLowerInvariant().Contains(term);
+                }).ToList();
+            }
+
+            var totalCount = enrollments.Count;
+
+            var pagedEnrollments = enrollments
+                .OrderByDescending(e => e.EnrollmentDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var dtos = await MapToEnrollmentDtos(pagedEnrollments);
+
+            var result = PagedResult<EnrollmentDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<EnrollmentDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving enrollments");
-            return StatusCode(500, ApiResponse<IEnumerable<EnrollmentDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<EnrollmentDto>>.FailureResult(
                 "An error occurred while retrieving enrollments"));
         }
     }

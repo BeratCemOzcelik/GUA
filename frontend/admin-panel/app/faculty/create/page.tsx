@@ -56,12 +56,8 @@ export default function CreateFacultyPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await usersApi.getAll()
-        // Filter only users with Faculty role
-        const facultyUsers = (response.data || []).filter((user: any) =>
-          user.roles?.some((role: string) => role === 'Faculty')
-        )
-        setUsers(facultyUsers)
+        const response = await usersApi.getAll({ role: 'Faculty', pageSize: 1000 })
+        setUsers(response.data?.items || [])
       } catch (err: any) {
         console.error('Failed to fetch users:', err)
       }

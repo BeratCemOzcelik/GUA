@@ -67,8 +67,8 @@ export default function DashboardPage() {
             departmentsApi.getAll(),
             programsApi.getAll(),
             coursesApi.getAll(),
-            usersApi.getAll(),
-            applicationsApi.getAll().catch(() => ({ data: [] })),
+            usersApi.getAll({ pageSize: 1 }),
+            applicationsApi.getAll({ pageSize: 1 }).catch(() => ({ data: { totalCount: 0 } })),
             auditLogsApi.getAll(1, 10).catch(() => ({ data: [] })),
           ])
 
@@ -76,8 +76,8 @@ export default function DashboardPage() {
           departments: departmentsRes.data?.length || 0,
           programs: programsRes.data?.length || 0,
           courses: coursesRes.data?.length || 0,
-          users: usersRes.data?.length || 0,
-          applications: applicationsRes.data?.length || 0,
+          users: usersRes.data?.totalCount || 0,
+          applications: applicationsRes.data?.totalCount || 0,
         })
 
         setRecentActivity(auditRes.data || [])

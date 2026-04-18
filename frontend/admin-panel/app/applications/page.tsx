@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { applicationsApi } from '@/lib/api'
+import { applicationsApi, programsApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import Pagination from '@/components/ui/Pagination'
+import SearchBar from '@/components/ui/SearchBar'
 
 interface Application {
   id: number
@@ -19,6 +21,11 @@ interface Application {
   createdAt: string
 }
 
+interface Program {
+  id: number
+  name: string
+}
+
 const statusColors: Record<string, string> = {
   Draft: 'bg-gray-100 text-gray-800',
   Submitted: 'bg-blue-100 text-blue-800',
@@ -32,9 +39,17 @@ const statusOptions = ['Draft', 'Submitted', 'UnderReview', 'Approved', 'Rejecte
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [programs, setPrograms] = useState<Program[]>([])
+
+  const [filterStatus, setFilterStatus] = useState<string>('')
+  const [filterProgramId, setFilterProgramId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<string>('')
   const [statusModal, setStatusModal] = useState<{
     isOpen: boolean
     application: Application | null
@@ -58,8 +73,16 @@ export default function ApplicationsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await applicationsApi.getAll()
-      setApplications(response.data || [])
+      const response = await applicationsApi.getAll({
+        status: filterStatus || undefined,
+        programId: filterProgramId,
+        search: search || undefined,
+        page,
+        pageSize,
+      })
+      const data = response.data
+      setApplications(data?.items || [])
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       console.error('Failed to fetch applications:', err)
       setError(err.message || 'Failed to load applications')
@@ -68,9 +91,26 @@ export default function ApplicationsPage() {
     }
   }
 
+  const fetchPrograms = async () => {
+    try {
+      const res = await programsApi.getAll()
+      setPrograms(res.data || [])
+    } catch (err) {
+      console.error('Failed to fetch programs:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchPrograms()
+  }, [])
+
   useEffect(() => {
     fetchApplications()
-  }, [])
+  }, [filterStatus, filterProgramId, search, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterStatus, filterProgramId, search, pageSize])
 
   const handleStatusUpdate = async () => {
     if (!statusModal.application || !newStatus) return
@@ -85,7 +125,6 @@ export default function ApplicationsPage() {
       setRejectionReason('')
       fetchApplications()
 
-      // Show auto-creation result for approved applications
       if (newStatus === 'Approved' && response.data) {
         const result = response.data
         if (result.studentCreated) {
@@ -106,46 +145,50 @@ export default function ApplicationsPage() {
     }
   }
 
-  const filteredApps = filterStatus
-    ? applications.filter(a => a.status === filterStatus)
-    : applications
-
-  const statusCounts = applications.reduce((acc, app) => {
-    acc[app.status] = (acc[app.status] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Applications</h1>
         <p className="text-gray-600 mt-1">Manage student applications</p>
       </div>
 
-      {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {statusOptions.map(status => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(filterStatus === status ? '' : status)}
-            className={`p-4 rounded-lg border text-left transition-all ${
-              filterStatus === status
-                ? 'border-[#8B1A1A] bg-[#8B1A1A]/5 ring-2 ring-[#8B1A1A]/20'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-3">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, email, or phone..."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
           >
-            <p className="text-2xl font-bold text-gray-900">{statusCounts[status] || 0}</p>
-            <p className="text-sm text-gray-600">{status}</p>
-          </button>
-        ))}
+            <option value="">All Statuses</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterProgramId || ''}
+            onChange={(e) => setFilterProgramId(e.target.value ? Number(e.target.value) : undefined)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Programs</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">{error}</div>
       )}
 
       {/* Table */}
@@ -154,69 +197,80 @@ export default function ApplicationsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B1A1A]"></div>
           </div>
-        ) : filteredApps.length === 0 ? (
+        ) : applications.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No applications found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredApps.map(app => (
-                  <tr key={app.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{app.applicantName}</p>
-                        <p className="text-sm text-gray-500">{app.applicantEmail}</p>
-                        {app.phoneNumber && (
-                          <p className="text-sm text-gray-400">{app.phoneNumber}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{app.programName}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColors[app.status] || 'bg-gray-100 text-gray-800'}`}>
-                        {app.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(app.submittedAt || app.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setDetailModal({ isOpen: true, application: app })}
-                        >
-                          Details
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setStatusModal({ isOpen: true, application: app })
-                            setNewStatus(app.status)
-                            setRejectionReason(app.rejectionReason || '')
-                          }}
-                        >
-                          Update
-                        </Button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {applications.map((app) => (
+                    <tr key={app.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-gray-900">{app.applicantName}</p>
+                          <p className="text-sm text-gray-500">{app.applicantEmail}</p>
+                          {app.phoneNumber && <p className="text-sm text-gray-400">{app.phoneNumber}</p>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{app.programName}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            statusColors[app.status] || 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {app.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {new Date(app.submittedAt || app.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end space-x-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setDetailModal({ isOpen: true, application: app })}
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setStatusModal({ isOpen: true, application: app })
+                              setNewStatus(app.status)
+                              setRejectionReason(app.rejectionReason || '')
+                            }}
+                          >
+                            Update
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </div>
 
@@ -247,7 +301,11 @@ export default function ApplicationsPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColors[detailModal.application.status] || 'bg-gray-100 text-gray-800'}`}>
+                <span
+                  className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    statusColors[detailModal.application.status] || 'bg-gray-100 text-gray-800'
+                  }`}
+                >
                   {detailModal.application.status}
                 </span>
               </div>
@@ -302,11 +360,13 @@ export default function ApplicationsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
               value={newStatus}
-              onChange={e => setNewStatus(e.target.value)}
+              onChange={(e) => setNewStatus(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B1A1A]/20 focus:border-[#8B1A1A]"
             >
-              {statusOptions.map(s => (
-                <option key={s} value={s}>{s}</option>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           </div>
@@ -315,7 +375,7 @@ export default function ApplicationsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
               <textarea
                 value={rejectionReason}
-                onChange={e => setRejectionReason(e.target.value)}
+                onChange={(e) => setRejectionReason(e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B1A1A]/20 focus:border-[#8B1A1A] resize-none"
                 placeholder="Reason for rejection..."
@@ -366,7 +426,11 @@ export default function ApplicationsPage() {
             <div className="border-t border-gray-200"></div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Payment Plan</span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${approvalResult.paymentPlan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              <span
+                className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  approvalResult.paymentPlan ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                }`}
+              >
                 {approvalResult.paymentPlan ? '6 Installments Created' : 'No Tuition Fee'}
               </span>
             </div>
@@ -375,9 +439,7 @@ export default function ApplicationsPage() {
             Login credentials have been sent to the student&apos;s email.
           </p>
           <div className="flex justify-center">
-            <Button onClick={() => setApprovalResult({ isOpen: false })}>
-              Close
-            </Button>
+            <Button onClick={() => setApprovalResult({ isOpen: false })}>Close</Button>
           </div>
         </div>
       </Modal>

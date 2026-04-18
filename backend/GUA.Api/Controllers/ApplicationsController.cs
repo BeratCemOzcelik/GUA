@@ -104,38 +104,74 @@ public class ApplicationsController : ControllerBase
     // GET api/Applications - Admin: list all applications
     [HttpGet]
     [Authorize(Roles = "Admin,SuperAdmin")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<ApplicationListDto>>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PagedResult<ApplicationListDto>>>> GetAll(
+        [FromQuery] string? status = null,
+        [FromQuery] int? programId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var applications = await _applicationRepository.GetAllAsync();
-            var programIds = applications.Select(a => a.ProgramId).Distinct().ToList();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
+
+            var applications = (await _applicationRepository.GetAllAsync()).ToList();
+
+            if (!string.IsNullOrWhiteSpace(status)
+                && Enum.TryParse<ApplicationStatus>(status, true, out var statusEnum))
+            {
+                applications = applications.Where(a => a.Status == statusEnum).ToList();
+            }
+
+            if (programId.HasValue)
+                applications = applications.Where(a => a.ProgramId == programId.Value).ToList();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLowerInvariant();
+                applications = applications.Where(a =>
+                    a.ApplicantFirstName.ToLowerInvariant().Contains(term)
+                    || a.ApplicantLastName.ToLowerInvariant().Contains(term)
+                    || a.ApplicantEmail.ToLowerInvariant().Contains(term)
+                    || (a.PhoneNumber ?? "").ToLowerInvariant().Contains(term)).ToList();
+            }
+
+            var totalCount = applications.Count;
+
+            var pagedApplications = applications
+                .OrderByDescending(a => a.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var programIds = pagedApplications.Select(a => a.ProgramId).Distinct().ToList();
             var programs = await _programRepository.FindAsync(p => programIds.Contains(p.Id));
             var programDict = programs.ToDictionary(p => p.Id);
 
-            var dtos = applications
-                .OrderByDescending(a => a.CreatedAt)
-                .Select(a => new ApplicationListDto
-                {
-                    Id = a.Id,
-                    ApplicantName = $"{a.ApplicantFirstName} {a.ApplicantLastName}",
-                    ApplicantEmail = a.ApplicantEmail,
-                    PhoneNumber = a.PhoneNumber,
-                    ProgramName = programDict.GetValueOrDefault(a.ProgramId)?.Name ?? "Unknown",
-                    Status = a.Status.ToString(),
-                    SubmittedAt = a.SubmittedAt,
-                    ReviewedAt = a.ReviewedAt,
-                    Notes = a.Notes,
-                    RejectionReason = a.RejectionReason,
-                    CreatedAt = a.CreatedAt
-                });
+            var dtos = pagedApplications.Select(a => new ApplicationListDto
+            {
+                Id = a.Id,
+                ApplicantName = $"{a.ApplicantFirstName} {a.ApplicantLastName}",
+                ApplicantEmail = a.ApplicantEmail,
+                PhoneNumber = a.PhoneNumber,
+                ProgramName = programDict.GetValueOrDefault(a.ProgramId)?.Name ?? "Unknown",
+                Status = a.Status.ToString(),
+                SubmittedAt = a.SubmittedAt,
+                ReviewedAt = a.ReviewedAt,
+                Notes = a.Notes,
+                RejectionReason = a.RejectionReason,
+                CreatedAt = a.CreatedAt
+            }).ToList();
 
-            return Ok(ApiResponse<IEnumerable<ApplicationListDto>>.SuccessResult(dtos));
+            var result = PagedResult<ApplicationListDto>.Create(dtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<ApplicationListDto>>.SuccessResult(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving applications");
-            return StatusCode(500, ApiResponse<IEnumerable<ApplicationListDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<ApplicationListDto>>.FailureResult(
                 "An error occurred while retrieving applications"));
         }
     }

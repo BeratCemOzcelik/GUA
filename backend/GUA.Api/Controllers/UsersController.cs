@@ -31,49 +31,76 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<UserManagementDto>>>> GetAllUsers()
+    public async Task<ActionResult<ApiResponse<PagedResult<UserManagementDto>>>> GetAllUsers(
+        [FromQuery] string? role = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var users = await _userRepository.GetAllAsync();
-            var userDtos = new List<UserManagementDto>();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 1000) pageSize = 1000;
 
-            foreach (var user in users)
+            var users = (await _userRepository.GetAllAsync()).ToList();
+
+            if (isActive.HasValue)
+                users = users.Where(u => u.IsActive == isActive.Value).ToList();
+
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                var userRoles = await _userRoleRepository.FindAsync(ur => ur.UserId == user.Id);
-                var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
-                var roles = new List<string>();
-
-                foreach (var roleId in roleIds)
-                {
-                    var role = await _roleRepository.GetByIdAsync(roleId);
-                    if (role != null)
-                    {
-                        roles.Add(role.Name);
-                    }
-                }
-
-                userDtos.Add(new UserManagementDto
-                {
-                    Id = user.Id,
-                    Email = user.Email,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName,
-                    PhoneNumber = user.PhoneNumber,
-                    IsActive = user.IsActive,
-                    Roles = roles,
-                    CreatedAt = user.CreatedAt,
-                    UpdatedAt = user.UpdatedAt
-                });
+                var term = search.Trim().ToLowerInvariant();
+                users = users.Where(u =>
+                    u.Email.ToLowerInvariant().Contains(term)
+                    || u.FirstName.ToLowerInvariant().Contains(term)
+                    || u.LastName.ToLowerInvariant().Contains(term)).ToList();
             }
 
-            return Ok(ApiResponse<List<UserManagementDto>>.SuccessResult(
-                userDtos, "Users retrieved successfully"));
+            // Load role data once (needed for filter + response)
+            var allUserRoles = (await _userRoleRepository.GetAllAsync()).ToList();
+            var allRoles = (await _roleRepository.GetAllAsync()).ToList();
+            var roleDict = allRoles.ToDictionary(r => r.Id, r => r.Name);
+            var userRolesLookup = allUserRoles
+                .GroupBy(ur => ur.UserId)
+                .ToDictionary(g => g.Key, g => g.Select(ur => roleDict.GetValueOrDefault(ur.RoleId) ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList());
+
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                users = users.Where(u =>
+                    userRolesLookup.TryGetValue(u.Id, out var roles)
+                    && roles.Any(r => r.Equals(role, StringComparison.OrdinalIgnoreCase))).ToList();
+            }
+
+            var totalCount = users.Count;
+
+            var pagedUsers = users
+                .OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var userDtos = pagedUsers.Select(user => new UserManagementDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                PhoneNumber = user.PhoneNumber,
+                IsActive = user.IsActive,
+                Roles = userRolesLookup.GetValueOrDefault(user.Id) ?? new List<string>(),
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            }).ToList();
+
+            var result = PagedResult<UserManagementDto>.Create(userDtos, totalCount, page, pageSize);
+            return Ok(ApiResponse<PagedResult<UserManagementDto>>.SuccessResult(result, "Users retrieved successfully"));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving users");
-            return StatusCode(500, ApiResponse<List<UserManagementDto>>.FailureResult(
+            return StatusCode(500, ApiResponse<PagedResult<UserManagementDto>>.FailureResult(
                 "An error occurred while retrieving users"));
         }
     }

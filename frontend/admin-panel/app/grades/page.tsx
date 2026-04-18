@@ -27,12 +27,12 @@ export default function GradesPage() {
         gpaRecordsApi.getAll(),
         studentProfilesApi.getAll(),
         academicTermsApi.getAll(),
-        courseOfferingsApi.getAll(),
+        courseOfferingsApi.getAll({ pageSize: 1000 }),
       ])
       setGpaRecords(gpaRes.data || [])
       setStudents(studentRes.data || [])
       setTerms(termRes.data || [])
-      setOfferings(offeringRes.data || [])
+      setOfferings(offeringRes.data?.items || [])
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load data')
     } finally {

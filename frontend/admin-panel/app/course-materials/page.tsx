@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { courseMaterialsApi } from '@/lib/api'
+import { courseMaterialsApi, coursesApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import Pagination from '@/components/ui/Pagination'
+import SearchBar from '@/components/ui/SearchBar'
+
+interface Course {
+  id: number
+  name: string
+  code: string
+}
 
 interface CourseMaterial {
   id: number
@@ -23,6 +31,14 @@ interface CourseMaterial {
 
 export default function CourseMaterialsPage() {
   const [materials, setMaterials] = useState<CourseMaterial[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [courses, setCourses] = useState<Course[]>([])
+
+  const [selectedCourseId, setSelectedCourseId] = useState<number | undefined>()
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{
@@ -36,12 +52,28 @@ export default function CourseMaterialsPage() {
   })
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const fetchCourses = async () => {
+    try {
+      const res = await coursesApi.getAll()
+      setCourses(res.data || [])
+    } catch (err) {
+      console.error('Failed to fetch courses:', err)
+    }
+  }
+
   const fetchMaterials = async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await courseMaterialsApi.getAll()
-      setMaterials(response.data || [])
+      const response = await courseMaterialsApi.getAll({
+        courseId: selectedCourseId,
+        search: search || undefined,
+        page,
+        pageSize,
+      })
+      const data = response.data
+      setMaterials(data?.items || [])
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       console.error('Failed to fetch course materials:', err)
       setError(err.message || 'Failed to load course materials')
@@ -51,8 +83,16 @@ export default function CourseMaterialsPage() {
   }
 
   useEffect(() => {
-    fetchMaterials()
+    fetchCourses()
   }, [])
+
+  useEffect(() => {
+    fetchMaterials()
+  }, [selectedCourseId, search, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedCourseId, search, pageSize])
 
   const handleDelete = async () => {
     if (!deleteModal.materialId) return
@@ -98,6 +138,29 @@ export default function CourseMaterialsPage() {
         </Link>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 space-y-3">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by title, description, or course..."
+        />
+        <div>
+          <select
+            value={selectedCourseId || ''}
+            onChange={(e) => setSelectedCourseId(e.target.value ? Number(e.target.value) : undefined)}
+            className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B1A1A] focus:border-transparent"
+          >
+            <option value="">All Courses</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} - {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
@@ -122,105 +185,114 @@ export default function CourseMaterialsPage() {
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Course
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    File Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Uploader
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Version
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {materials.map((material) => (
-                  <tr key={material.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{material.courseName}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        <span>{getFileTypeIcon(material.fileType)}</span>
-                        <div>
-                          <div className="font-medium text-gray-900">{material.title}</div>
-                          {material.description && (
-                            <div className="text-sm text-gray-500 truncate max-w-md">
-                              {material.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {material.fileType}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {material.uploadedBy}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      v{material.version}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          material.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {material.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <a
-                          href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/files/download?fileUrl=${encodeURIComponent(material.fileUrl)}`}
-                          className="text-[#8B1A1A] hover:text-[#6B1414] font-medium transition-colors"
-                        >
-                          ⬇️ Download
-                        </a>
-                        <Link href={`/course-materials/${material.id}/edit`}>
-                          <Button variant="secondary" size="sm">
-                            ✏️ Edit
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            setDeleteModal({
-                              isOpen: true,
-                              materialId: material.id,
-                              materialTitle: material.title,
-                            })
-                          }
-                        >
-                          🗑️ Delete
-                        </Button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Course
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      File Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Uploader
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Version
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {materials.map((material) => (
+                    <tr key={material.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{material.courseName}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                          <span>{getFileTypeIcon(material.fileType)}</span>
+                          <div>
+                            <div className="font-medium text-gray-900">{material.title}</div>
+                            {material.description && (
+                              <div className="text-sm text-gray-500 truncate max-w-md">
+                                {material.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {material.fileType}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {material.uploadedBy}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        v{material.version}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            material.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {material.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/files/download?fileUrl=${encodeURIComponent(material.fileUrl)}`}
+                            className="text-[#8B1A1A] hover:text-[#6B1414] font-medium transition-colors"
+                          >
+                            ⬇️ Download
+                          </a>
+                          <Link href={`/course-materials/${material.id}/edit`}>
+                            <Button variant="secondary" size="sm">
+                              ✏️ Edit
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() =>
+                              setDeleteModal({
+                                isOpen: true,
+                                materialId: material.id,
+                                materialTitle: material.title,
+                              })
+                            }
+                          >
+                            🗑️ Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </div>
 

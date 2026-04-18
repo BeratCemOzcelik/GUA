@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { paymentsApi, studentProfilesApi, programsApi } from '@/lib/api'
+import Pagination from '@/components/ui/Pagination'
+import SearchBar from '@/components/ui/SearchBar'
 
 interface PaymentDto {
   id: number
@@ -34,8 +36,12 @@ interface Program {
   tuitionFee: number
 }
 
+const PAYMENT_STATUSES = ['Pending', 'Completed', 'Failed', 'Cancelled']
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<PaymentDto[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [statsPayments, setStatsPayments] = useState<PaymentDto[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -48,26 +54,33 @@ export default function PaymentsPage() {
   const [customAmount, setCustomAmount] = useState<number>(0)
   const [generating, setGenerating] = useState(false)
 
-  // Filter
+  // Filters
   const [filterStudentId, setFilterStudentId] = useState<number | undefined>()
+  const [filterStatus, setFilterStatus] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   useEffect(() => {
-    loadData()
+    loadMetadata()
   }, [])
 
   useEffect(() => {
     loadPayments()
-  }, [filterStudentId])
+    loadStats()
+  }, [filterStudentId, filterStatus, search, page, pageSize])
 
-  const loadData = async () => {
+  useEffect(() => {
+    setPage(1)
+  }, [filterStudentId, filterStatus, search, pageSize])
+
+  const loadMetadata = async () => {
     try {
       setIsLoading(true)
-      const [paymentsRes, studentsRes, programsRes] = await Promise.all([
-        paymentsApi.getAll(),
+      const [studentsRes, programsRes] = await Promise.all([
         studentProfilesApi.getAll(),
         programsApi.getAll(),
       ])
-      setPayments(paymentsRes.data || [])
       setStudents(studentsRes.data || [])
       setPrograms(programsRes.data || [])
     } catch (err: any) {
@@ -79,18 +92,41 @@ export default function PaymentsPage() {
 
   const loadPayments = async () => {
     try {
-      const res = await paymentsApi.getAll(filterStudentId)
-      setPayments(res.data || [])
+      const res = await paymentsApi.getAll({
+        studentId: filterStudentId,
+        status: filterStatus || undefined,
+        search: search || undefined,
+        page,
+        pageSize,
+      })
+      const data = res.data
+      setPayments(data?.items || [])
+      setTotalCount(data?.totalCount || 0)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load payments')
     }
   }
 
+  const loadStats = async () => {
+    try {
+      // Stats across the filtered dataset (no pagination)
+      const res = await paymentsApi.getAll({
+        studentId: filterStudentId,
+        status: filterStatus || undefined,
+        search: search || undefined,
+        pageSize: 1000,
+      })
+      setStatsPayments(res.data?.items || [])
+    } catch {
+      setStatsPayments([])
+    }
+  }
+
   const handleStudentSelect = (studentId: number) => {
     setSelectedStudentId(studentId)
-    const student = students.find(s => s.id === studentId)
+    const student = students.find((s) => s.id === studentId)
     if (student) {
-      const program = programs.find(p => p.id === student.programId)
+      const program = programs.find((p) => p.id === student.programId)
       setCustomAmount(program?.tuitionFee || 0)
     }
   }
@@ -109,6 +145,7 @@ export default function PaymentsPage() {
       setSelectedStudentId(0)
       setCustomAmount(0)
       await loadPayments()
+      await loadStats()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to generate installments')
     } finally {
@@ -120,6 +157,7 @@ export default function PaymentsPage() {
     try {
       await paymentsApi.checkStatus(paymentId)
       await loadPayments()
+      await loadStats()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to check status')
     }
@@ -131,6 +169,7 @@ export default function PaymentsPage() {
       await paymentsApi.deleteStudentPayments(studentId)
       setSuccess('Payments deleted')
       await loadPayments()
+      await loadStats()
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to delete payments')
     }
@@ -146,13 +185,19 @@ export default function PaymentsPage() {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  // Students that don't have payments yet
-  const studentsWithoutPayments = students.filter(
-    s => !payments.some(p => p.studentId === s.id)
-  )
+  // Stats computed from statsPayments
+  const totalExpected = statsPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalCollected = statsPayments
+    .filter((p) => p.status === 'Completed')
+    .reduce((sum, p) => sum + p.amount, 0)
+  const totalPending = statsPayments
+    .filter((p) => p.status === 'Pending')
+    .reduce((sum, p) => sum + p.amount, 0)
+  const studentsWithPlans = new Set(statsPayments.map((p) => p.studentId)).size
 
-  // Group payments by student
-  const studentIds = [...new Set(payments.map(p => p.studentId))]
+  const studentsWithoutPayments = students.filter(
+    (s) => !statsPayments.some((p) => p.studentId === s.id)
+  )
 
   if (isLoading) {
     return (
@@ -180,14 +225,18 @@ export default function PaymentsPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
-          <button onClick={() => setError('')} className="float-right font-bold">&times;</button>
+          <button onClick={() => setError('')} className="float-right font-bold">
+            &times;
+          </button>
         </div>
       )}
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
           {success}
-          <button onClick={() => setSuccess('')} className="float-right font-bold">&times;</button>
+          <button onClick={() => setSuccess('')} className="float-right font-bold">
+            &times;
+          </button>
         </div>
       )}
 
@@ -204,7 +253,7 @@ export default function PaymentsPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
               >
                 <option value={0}>Select student...</option>
-                {studentsWithoutPayments.map(s => (
+                {studentsWithoutPayments.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.studentNumber} - {s.firstName} {s.lastName}
                   </option>
@@ -238,48 +287,58 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-700">Filter by Student:</label>
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by student name, number, or description..."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <select
             value={filterStudentId || ''}
             onChange={(e) => setFilterStudentId(e.target.value ? Number(e.target.value) : undefined)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
           >
             <option value="">All Students</option>
-            {students.map(s => (
+            {students.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.studentNumber} - {s.firstName} {s.lastName}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-gray-900"
+          >
+            <option value="">All Statuses</option>
+            {PAYMENT_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Summary Stats */}
+      {/* Summary Stats (reflect current filters) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total Expected</p>
-          <p className="text-2xl font-bold text-gray-900">
-            ${payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-          </p>
+          <p className="text-2xl font-bold text-gray-900">${totalExpected.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total Collected</p>
-          <p className="text-2xl font-bold text-green-600">
-            ${payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-          </p>
+          <p className="text-2xl font-bold text-green-600">${totalCollected.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">
-            ${payments.filter(p => p.status === 'Pending').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-          </p>
+          <p className="text-2xl font-bold text-yellow-600">${totalPending.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Students with Plans</p>
-          <p className="text-2xl font-bold text-gray-900">{studentIds.length}</p>
+          <p className="text-2xl font-bold text-gray-900">{studentsWithPlans}</p>
         </div>
       </div>
 
@@ -326,7 +385,9 @@ export default function PaymentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(payment.status)}`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(payment.status)}`}
+                      >
                         {payment.status}
                       </span>
                     </td>
@@ -359,6 +420,13 @@ export default function PaymentsPage() {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
     </div>
   )
