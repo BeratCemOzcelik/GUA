@@ -7,17 +7,19 @@ import { api } from '@/lib/api'
 interface FacultyProfile {
   id: number
   userId: string
+  // Flat user fields returned by FacultyProfileDto (no nested `user` object)
+  firstName: string
+  lastName: string
+  userEmail: string
   title: string
   bio: string
   researchInterests: string
   officeLocation: string
   officeHours: string
   photoUrl?: string
-  user: {
-    firstName: string
-    lastName: string
-    email: string
-  }
+  linkedInUrl?: string
+  googleScholarUrl?: string
+  createdAt: string
 }
 
 export default function ProfilePage() {

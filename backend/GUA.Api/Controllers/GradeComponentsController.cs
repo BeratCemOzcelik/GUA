@@ -18,6 +18,8 @@ public class GradeComponentsController : ControllerBase
     private readonly IRepository<Course> _courseRepository;
     private readonly IRepository<AcademicTerm> _termRepository;
     private readonly IRepository<FacultyProfile> _facultyRepository;
+    private readonly IRepository<StudentProfile> _studentRepository;
+    private readonly IRepository<Enrollment> _enrollmentRepository;
     private readonly ILogger<GradeComponentsController> _logger;
 
     public GradeComponentsController(
@@ -26,6 +28,8 @@ public class GradeComponentsController : ControllerBase
         IRepository<Course> courseRepository,
         IRepository<AcademicTerm> termRepository,
         IRepository<FacultyProfile> facultyRepository,
+        IRepository<StudentProfile> studentRepository,
+        IRepository<Enrollment> enrollmentRepository,
         ILogger<GradeComponentsController> logger)
     {
         _repository = repository;
@@ -33,7 +37,54 @@ public class GradeComponentsController : ControllerBase
         _courseRepository = courseRepository;
         _termRepository = termRepository;
         _facultyRepository = facultyRepository;
+        _studentRepository = studentRepository;
+        _enrollmentRepository = enrollmentRepository;
         _logger = logger;
+    }
+
+    private async Task<bool> CanAccessCourseOfferingAsync(int courseOfferingId)
+    {
+        // Admin/SuperAdmin: always allowed
+        if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
+            return true;
+
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdClaim, out var userId))
+            return false;
+
+        // A user may hold multiple roles (e.g., Faculty + Student). Any single role that
+        // grants access is sufficient — checks are independent, not exclusive.
+
+        if (User.IsInRole("Faculty"))
+        {
+            var offering = await _offeringRepository.GetByIdAsync(courseOfferingId);
+            if (offering != null)
+            {
+                var faculties = await _facultyRepository.FindAsync(f => f.UserId == userId);
+                var faculty = faculties.FirstOrDefault();
+                if (faculty != null && offering.FacultyProfileId == faculty.Id)
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (User.IsInRole("Student"))
+        {
+            var students = await _studentRepository.FindAsync(s => s.UserId == userId);
+            var student = students.FirstOrDefault();
+            if (student != null)
+            {
+                var enrollments = await _enrollmentRepository.FindAsync(e =>
+                    e.StudentId == student.Id && e.CourseOfferingId == courseOfferingId);
+                if (enrollments.Any())
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     [HttpGet]
@@ -150,12 +201,26 @@ public class GradeComponentsController : ControllerBase
     }
 
     [HttpGet("by-course-offering/{courseOfferingId}")]
-    [Authorize]
+    [Authorize(Roles = "Admin,SuperAdmin,Faculty,Student")]
     public async Task<ActionResult<ApiResponse<IEnumerable<GradeComponentDto>>>> GetByCourseOffering(int courseOfferingId)
     {
         try
         {
+            // Ownership/enrollment check: only admins, the teaching faculty, or an enrolled student may view
+            if (!await CanAccessCourseOfferingAsync(courseOfferingId))
+            {
+                return Forbid();
+            }
+
             var components = await _repository.FindAsync(gc => gc.CourseOfferingId == courseOfferingId);
+
+            // Students only see published components (faculty may still be drafting weights)
+            var isStudent = User.IsInRole("Student") && !User.IsInRole("Faculty")
+                && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin");
+            if (isStudent)
+            {
+                components = components.Where(gc => gc.IsPublished);
+            }
 
             var dtos = components.Select(gc => new GradeComponentDto
             {

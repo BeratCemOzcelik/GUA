@@ -39,7 +39,9 @@ const STATUS_OPTIONS = ['Enrolled', 'Dropped', 'Completed', 'Withdrawn']
 export default function CourseDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const courseOfferingId = parseInt(params.courseOfferingId as string)
+  const courseOfferingIdRaw = parseInt(params.courseOfferingId as string)
+  const courseOfferingId = Number.isFinite(courseOfferingIdRaw) ? courseOfferingIdRaw : 0
+  const isValidCourseId = courseOfferingId > 0
 
   const [courseInfo, setCourseInfo] = useState<CourseOffering | null>(null)
   const [students, setStudents] = useState<EnrolledStudent[]>([])
@@ -54,12 +56,14 @@ export default function CourseDetailPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!isValidCourseId) return
     loadCourseInfo()
-  }, [courseOfferingId])
+  }, [courseOfferingId, isValidCourseId])
 
   useEffect(() => {
+    if (!isValidCourseId) return
     loadStudents()
-  }, [courseOfferingId, statusFilter, search, page, pageSize])
+  }, [courseOfferingId, isValidCourseId, statusFilter, search, page, pageSize])
 
   useEffect(() => {
     setPage(1)
@@ -94,6 +98,19 @@ export default function CourseDetailPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!isValidCourseId) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+          Invalid course offering id.
+        </div>
+        <button onClick={() => router.push('/courses')} className="px-4 py-2 text-[#8B1A1A] hover:underline">
+          ← Back to My Courses
+        </button>
+      </div>
+    )
   }
 
   if (!courseInfo && !isLoading) {

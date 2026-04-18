@@ -339,6 +339,27 @@ public class FinalGradesController : ControllerBase
                 e.CourseOfferingId == offeringId &&
                 e.Status == EnrollmentStatus.Enrolled);
 
+            // Idempotent guard: if no enrolled students remain but previous finals exist,
+            // tell the caller instead of silently "publishing 0 grades"
+            if (!enrollments.Any())
+            {
+                var allForOffering = await _enrollmentRepository.FindAsync(e => e.CourseOfferingId == offeringId);
+                var offeringEnrollmentIds = allForOffering.Select(e => e.Id).ToHashSet();
+                var existingFinals = (await _repository.GetAllAsync())
+                    .Count(fg => offeringEnrollmentIds.Contains(fg.EnrollmentId));
+
+                if (existingFinals > 0)
+                {
+                    return Ok(ApiResponse<IEnumerable<FinalGradeDto>>.SuccessResult(
+                        Array.Empty<FinalGradeDto>(),
+                        $"No pending enrollments to publish. {existingFinals} final grade(s) were already published for this course."));
+                }
+
+                return Ok(ApiResponse<IEnumerable<FinalGradeDto>>.SuccessResult(
+                    Array.Empty<FinalGradeDto>(),
+                    "No enrolled students found for this course."));
+            }
+
             var createdFinalGrades = new List<FinalGrade>();
             var errors = new List<string>();
 

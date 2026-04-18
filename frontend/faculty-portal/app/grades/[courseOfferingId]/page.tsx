@@ -35,7 +35,9 @@ const STATUS_OPTIONS = ['Enrolled', 'Dropped', 'Completed', 'Withdrawn']
 export default function GradeEntryPage() {
   const params = useParams()
   const router = useRouter()
-  const courseOfferingId = parseInt(params.courseOfferingId as string)
+  const courseOfferingIdRaw = parseInt(params.courseOfferingId as string)
+  const courseOfferingId = Number.isFinite(courseOfferingIdRaw) ? courseOfferingIdRaw : 0
+  const isValidCourseId = courseOfferingId > 0
 
   const [courseInfo, setCourseInfo] = useState<any>(null)
   const [gradeComponents, setGradeComponents] = useState<GradeComponent[]>([])
@@ -67,8 +69,9 @@ export default function GradeEntryPage() {
 
   // Initial load: course info + grade components (these don't depend on pagination)
   useEffect(() => {
+    if (!isValidCourseId) return
     loadCourseAndComponents()
-  }, [courseOfferingId])
+  }, [courseOfferingId, isValidCourseId])
 
   // Paginated student grades reload
   useEffect(() => {
@@ -105,36 +108,34 @@ export default function GradeEntryPage() {
       qs.append('page', page.toString())
       qs.append('pageSize', pageSize.toString())
 
-      const studentsRes = await api.get(`/Enrollments/by-course-offering/${courseOfferingId}/students?${qs.toString()}`)
+      // Single aggregated call for all grades in this course — replaces N+1 per-student fetch.
+      const [studentsRes, allGradesRes] = await Promise.all([
+        api.get(`/Enrollments/by-course-offering/${courseOfferingId}/students?${qs.toString()}`),
+        api.get(`/Grades?courseOfferingId=${courseOfferingId}`),
+      ])
+
       const studentsData = studentsRes.data.data
       const students = studentsData?.items || []
       setTotalCount(studentsData?.totalCount || 0)
 
-      // Batch-fetch grades for visible students in parallel (N calls for page size, not total)
-      const gradeResults = await Promise.all(
-        students.map((s: any) =>
-          api
-            .get(`/Grades/enrollment/${s.enrollmentId}`)
-            .then((r) => ({ enrollmentId: s.enrollmentId, data: r.data.data }))
-            .catch(() => ({ enrollmentId: s.enrollmentId, data: null }))
-        )
-      )
-      const gradeMap = new Map<number, any>(gradeResults.map((g) => [g.enrollmentId, g.data]))
+      // Build (enrollmentId, componentId) → {score, gradeId} index
+      const allGrades: any[] = allGradesRes.data?.data || []
+      const gradeIndex = new Map<string, { score: number; gradeId: number }>()
+      for (const g of allGrades) {
+        gradeIndex.set(`${g.enrollmentId}:${g.gradeComponentId}`, { score: g.score, gradeId: g.id })
+      }
 
       const studentGradesData: StudentGrade[] = students.map((student: any) => {
-        const enrollmentData = gradeMap.get(student.enrollmentId)
-        const componentGrades = enrollmentData?.componentGrades || []
-
         return {
           enrollmentId: student.enrollmentId,
           studentNumber: student.studentNumber,
           studentName: `${student.firstName} ${student.lastName}`,
           gradeComponents: gradeComponents.map((comp) => {
-            const existing = componentGrades.find((cg: any) => cg.componentId === comp.id)
+            const existing = gradeIndex.get(`${student.enrollmentId}:${comp.id}`)
             return {
               componentId: comp.id,
-              score: existing?.grade?.score,
-              gradeId: existing?.grade?.id,
+              score: existing?.score,
+              gradeId: existing?.gradeId,
             }
           }),
           finalLetterGrade: student.finalLetterGrade,
@@ -243,25 +244,58 @@ export default function GradeEntryPage() {
       setError('')
       setSuccess('')
 
+      // Group entered scores by component; backend's /Grades/bulk handles create-or-update atomically per component.
+      const byComponent = new Map<number, { enrollmentId: number; score: number }[]>()
       for (const student of studentGrades) {
         for (const comp of student.gradeComponents) {
-          if (comp.score !== undefined && comp.score !== null) {
-            const payload = {
+          if (comp.score !== undefined && comp.score !== null && !Number.isNaN(comp.score)) {
+            if (!byComponent.has(comp.componentId)) byComponent.set(comp.componentId, [])
+            byComponent.get(comp.componentId)!.push({
               enrollmentId: student.enrollmentId,
-              gradeComponentId: comp.componentId,
               score: comp.score,
-            }
-
-            if (comp.gradeId) {
-              await api.put(`/Grades/${comp.gradeId}`, payload)
-            } else {
-              await api.post('/Grades', payload)
-            }
+            })
           }
         }
       }
 
-      setSuccess('Grades saved successfully!')
+      if (byComponent.size === 0) {
+        setSuccess('No scores to save.')
+        return
+      }
+
+      // Fire one bulk POST per component in parallel. allSettled so partial failures don't hide successes.
+      const results = await Promise.allSettled(
+        Array.from(byComponent.entries()).map(([gradeComponentId, studentGradesList]) =>
+          api.post('/Grades/bulk', {
+            gradeComponentId,
+            studentGrades: studentGradesList,
+          })
+        )
+      )
+
+      // Two failure modes to surface:
+      //  (a) HTTP error → Promise.allSettled rejected
+      //  (b) Backend returned 200 OK but embedded an error summary in message
+      //      (`/Grades/bulk` returns 200 even with per-student failures — see GradesController)
+      const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
+      const partialFailures = results
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map((r) => r.value?.data?.message as string | undefined)
+        .filter((m): m is string => !!m && /error/i.test(m))
+
+      if (rejected.length > 0 || partialFailures.length > 0) {
+        const rejectedMessages = rejected
+          .map((r: any) => r.reason?.response?.data?.message || r.reason?.message)
+          .filter(Boolean)
+        const allMessages = [...rejectedMessages, ...partialFailures].join(' | ')
+        const summary = rejected.length > 0
+          ? `${rejected.length} of ${results.length} save(s) failed.`
+          : 'Grades saved with issues.'
+        setError(`${summary} ${allMessages}`.trim())
+      } else {
+        setSuccess('Grades saved successfully!')
+      }
+
       setHasUnsavedChanges(false)
       await loadStudentGrades()
     } catch (err: any) {
@@ -286,6 +320,19 @@ export default function GradeEntryPage() {
     } finally {
       setIsPublishing(false)
     }
+  }
+
+  if (!isValidCourseId) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+          Invalid course offering id.
+        </div>
+        <button onClick={() => router.push('/courses')} className="px-4 py-2 text-[#8B1A1A] hover:underline">
+          ← Back to My Courses
+        </button>
+      </div>
+    )
   }
 
   if (error && !courseInfo) {

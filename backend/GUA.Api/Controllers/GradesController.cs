@@ -60,6 +60,33 @@ public class GradesController : ControllerBase
     {
         try
         {
+            // Ownership scope for Faculty: may only see grades for offerings they teach.
+            // Admin/SuperAdmin unrestricted.
+            HashSet<int>? facultyOfferingIds = null;
+            var isFacultyOnly = User.IsInRole("Faculty") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin");
+            if (isFacultyOnly)
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return Unauthorized(ApiResponse<IEnumerable<GradeDto>>.FailureResult("Invalid user token"));
+                }
+                var faculties = await _facultyRepository.FindAsync(f => f.UserId == userId);
+                var facultyProfile = faculties.FirstOrDefault();
+                if (facultyProfile == null)
+                {
+                    return Forbid();
+                }
+                var myOfferings = await _offeringRepository.FindAsync(o => o.FacultyProfileId == facultyProfile.Id);
+                facultyOfferingIds = myOfferings.Select(o => o.Id).ToHashSet();
+
+                // If a specific offering is requested, it must be one they teach.
+                if (courseOfferingId.HasValue && !facultyOfferingIds.Contains(courseOfferingId.Value))
+                {
+                    return Forbid();
+                }
+            }
+
             var grades = await _repository.GetAllAsync();
 
             // Apply filters
@@ -78,6 +105,20 @@ public class GradesController : ControllerBase
                 var enrollments = await _enrollmentRepository.FindAsync(e => e.CourseOfferingId == courseOfferingId.Value);
                 var enrollmentIds = enrollments.Select(e => e.Id).ToList();
                 grades = grades.Where(g => enrollmentIds.Contains(g.EnrollmentId)).ToList();
+            }
+
+            // For faculty without explicit courseOfferingId, restrict results to their own courses
+            // (also closes the gap for enrollmentId or componentId filters that could otherwise
+            // reveal grades from other courses).
+            if (isFacultyOnly && facultyOfferingIds != null)
+            {
+                var gradeEnrollmentIds = grades.Select(g => g.EnrollmentId).Distinct().ToList();
+                var enrollmentsForGrades = await _enrollmentRepository.FindAsync(e => gradeEnrollmentIds.Contains(e.Id));
+                var allowedEnrollmentIds = enrollmentsForGrades
+                    .Where(e => facultyOfferingIds.Contains(e.CourseOfferingId))
+                    .Select(e => e.Id)
+                    .ToHashSet();
+                grades = grades.Where(g => allowedEnrollmentIds.Contains(g.EnrollmentId)).ToList();
             }
 
             var dtos = await MapToGradeDtos(grades);

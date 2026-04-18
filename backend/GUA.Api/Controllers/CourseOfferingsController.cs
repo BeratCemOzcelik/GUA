@@ -36,7 +36,7 @@ public class CourseOfferingsController : ControllerBase
     }
 
     [HttpGet]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<PagedResult<CourseOfferingDto>>>> GetAll(
         [FromQuery] int? termId = null,
         [FromQuery] int? courseId = null,
@@ -138,7 +138,7 @@ public class CourseOfferingsController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<CourseOfferingDto>>> GetById(int id)
     {
         try

@@ -21,6 +21,23 @@ public class AcademicTermsController : ControllerBase
         _logger = logger;
     }
 
+    // All DateTime values in DB are stored as UTC; explicitly tag the Kind so
+    // System.Text.Json serializes them with a "Z" suffix. Without this, browsers
+    // interpret the serialized string as local time and dates may shift by a day.
+    private static DateTime AsUtc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);
+    private static AcademicTermDto ToDto(AcademicTerm t) => new()
+    {
+        Id = t.Id,
+        Name = t.Name,
+        Code = t.Code,
+        StartDate = AsUtc(t.StartDate),
+        EndDate = AsUtc(t.EndDate),
+        IsActive = t.IsActive,
+        EnrollmentStartDate = AsUtc(t.EnrollmentStartDate),
+        EnrollmentEndDate = AsUtc(t.EnrollmentEndDate),
+        CreatedAt = AsUtc(t.CreatedAt)
+    };
+
     [HttpGet]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<AcademicTermDto>>>> GetAll()
@@ -28,18 +45,7 @@ public class AcademicTermsController : ControllerBase
         try
         {
             var academicTerms = await _repository.GetAllAsync();
-            var dtos = academicTerms.Select(t => new AcademicTermDto
-            {
-                Id = t.Id,
-                Name = t.Name,
-                Code = t.Code,
-                StartDate = t.StartDate,
-                EndDate = t.EndDate,
-                IsActive = t.IsActive,
-                EnrollmentStartDate = t.EnrollmentStartDate,
-                EnrollmentEndDate = t.EnrollmentEndDate,
-                CreatedAt = t.CreatedAt
-            });
+            var dtos = academicTerms.Select(ToDto);
 
             return Ok(ApiResponse<IEnumerable<AcademicTermDto>>.SuccessResult(dtos));
         }
@@ -64,20 +70,7 @@ public class AcademicTermsController : ControllerBase
                 return NotFound(ApiResponse<AcademicTermDto>.FailureResult("Academic term not found"));
             }
 
-            var dto = new AcademicTermDto
-            {
-                Id = academicTerm.Id,
-                Name = academicTerm.Name,
-                Code = academicTerm.Code,
-                StartDate = academicTerm.StartDate,
-                EndDate = academicTerm.EndDate,
-                IsActive = academicTerm.IsActive,
-                EnrollmentStartDate = academicTerm.EnrollmentStartDate,
-                EnrollmentEndDate = academicTerm.EnrollmentEndDate,
-                CreatedAt = academicTerm.CreatedAt
-            };
-
-            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(dto));
+            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(ToDto(academicTerm)));
         }
         catch (Exception ex)
         {
@@ -104,20 +97,7 @@ public class AcademicTermsController : ControllerBase
                 return NotFound(ApiResponse<AcademicTermDto>.FailureResult("No active academic term found"));
             }
 
-            var dto = new AcademicTermDto
-            {
-                Id = activeTerm.Id,
-                Name = activeTerm.Name,
-                Code = activeTerm.Code,
-                StartDate = activeTerm.StartDate,
-                EndDate = activeTerm.EndDate,
-                EnrollmentStartDate = activeTerm.EnrollmentStartDate,
-                EnrollmentEndDate = activeTerm.EnrollmentEndDate,
-                IsActive = activeTerm.IsActive,
-                CreatedAt = activeTerm.CreatedAt
-            };
-
-            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(dto));
+            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(ToDto(activeTerm)));
         }
         catch (Exception ex)
         {
@@ -179,19 +159,7 @@ public class AcademicTermsController : ControllerBase
             };
 
             var created = await _repository.AddAsync(academicTerm);
-
-            var dto = new AcademicTermDto
-            {
-                Id = created.Id,
-                Name = created.Name,
-                Code = created.Code,
-                StartDate = created.StartDate,
-                EndDate = created.EndDate,
-                IsActive = created.IsActive,
-                EnrollmentStartDate = created.EnrollmentStartDate,
-                EnrollmentEndDate = created.EnrollmentEndDate,
-                CreatedAt = created.CreatedAt
-            };
+            var dto = ToDto(created);
 
             return CreatedAtAction(nameof(GetById), new { id = dto.Id },
                 ApiResponse<AcademicTermDto>.SuccessResult(dto, "Academic term created successfully"));
@@ -264,20 +232,7 @@ public class AcademicTermsController : ControllerBase
 
             await _repository.UpdateAsync(academicTerm);
 
-            var dto = new AcademicTermDto
-            {
-                Id = academicTerm.Id,
-                Name = academicTerm.Name,
-                Code = academicTerm.Code,
-                StartDate = academicTerm.StartDate,
-                EndDate = academicTerm.EndDate,
-                IsActive = academicTerm.IsActive,
-                EnrollmentStartDate = academicTerm.EnrollmentStartDate,
-                EnrollmentEndDate = academicTerm.EnrollmentEndDate,
-                CreatedAt = academicTerm.CreatedAt
-            };
-
-            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(dto, "Academic term updated successfully"));
+            return Ok(ApiResponse<AcademicTermDto>.SuccessResult(ToDto(academicTerm), "Academic term updated successfully"));
         }
         catch (Exception ex)
         {

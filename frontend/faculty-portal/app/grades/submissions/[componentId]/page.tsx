@@ -24,12 +24,14 @@ interface Submission {
   maxScore: number
 }
 
-const STATUS_OPTIONS = ['Submitted', 'Late', 'Graded']
+const STATUS_OPTIONS = ['Pending', 'Submitted', 'Late', 'Graded']
 
 export default function SubmissionsPage() {
   const params = useParams()
   const router = useRouter()
-  const componentId = parseInt(params.componentId as string)
+  const componentIdRaw = parseInt(params.componentId as string)
+  const componentId = Number.isFinite(componentIdRaw) ? componentIdRaw : 0
+  const isValidComponentId = componentId > 0
 
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -44,12 +46,14 @@ export default function SubmissionsPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!isValidComponentId) return
     loadComponentInfo()
-  }, [componentId])
+  }, [componentId, isValidComponentId])
 
   useEffect(() => {
+    if (!isValidComponentId) return
     loadSubmissions()
-  }, [componentId, status, search, page, pageSize])
+  }, [componentId, isValidComponentId, status, search, page, pageSize])
 
   useEffect(() => {
     setPage(1)
@@ -222,8 +226,13 @@ export default function SubmissionsPage() {
                       📥 Download Submission
                     </a>
                     <button
-                      onClick={() => router.push(`/grades/${componentInfo?.courseOfferingId}`)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors"
+                      onClick={() => {
+                        if (componentInfo?.courseOfferingId) {
+                          router.push(`/grades/${componentInfo.courseOfferingId}`)
+                        }
+                      }}
+                      disabled={!componentInfo?.courseOfferingId}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Enter Grade
                     </button>

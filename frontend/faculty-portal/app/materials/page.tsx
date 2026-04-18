@@ -81,6 +81,7 @@ export default function MaterialsPage() {
         description,
         fileUrl,
         fileType: fileExtension,
+        isActive: true,
       })
 
       alert('Material uploaded successfully!')

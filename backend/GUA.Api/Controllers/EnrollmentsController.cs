@@ -757,6 +757,23 @@ public class EnrollmentsController : ControllerBase
                 return NotFound(ApiResponse<PagedResult<EnrolledStudentDto>>.FailureResult("Course offering not found"));
             }
 
+            // Ownership check: a Faculty user may only list students of offerings they teach.
+            // Admin/SuperAdmin bypass this restriction.
+            if (User.IsInRole("Faculty") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return Unauthorized(ApiResponse<PagedResult<EnrolledStudentDto>>.FailureResult("Invalid user token"));
+                }
+                var faculties = await _facultyRepository.FindAsync(f => f.UserId == userId);
+                var facultyProfile = faculties.FirstOrDefault();
+                if (facultyProfile == null || offering.FacultyProfileId != facultyProfile.Id)
+                {
+                    return Forbid();
+                }
+            }
+
             var enrollments = (await _repository.GetAllAsync())
                 .Where(e => e.CourseOfferingId == courseOfferingId)
                 .ToList();
