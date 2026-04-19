@@ -172,12 +172,24 @@ public class FilesController : ControllerBase
                 return BadRequest("File URL is required");
             }
 
-            // Remove leading slash if present
-            var relativePath = fileUrl.TrimStart('/');
+            var normalized = fileUrl.TrimStart('/').Replace('\\', '/');
+            if (!normalized.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Invalid file URL");
+            }
 
-            // Construct full file path
             var webRootPath = _environment.WebRootPath;
-            var filePath = Path.Combine(webRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            var uploadsRoot = Path.GetFullPath(Path.Combine(webRootPath, "uploads"));
+            var filePath = Path.GetFullPath(Path.Combine(webRootPath, normalized.Replace('/', Path.DirectorySeparatorChar)));
+
+            // Path traversal guard: resolved path must stay within the uploads root
+            var uploadsPrefix = uploadsRoot.EndsWith(Path.DirectorySeparatorChar)
+                ? uploadsRoot
+                : uploadsRoot + Path.DirectorySeparatorChar;
+            if (!filePath.StartsWith(uploadsPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Invalid file path");
+            }
 
             if (!System.IO.File.Exists(filePath))
             {
