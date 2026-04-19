@@ -20,6 +20,8 @@ const navLinks = [
   { href: '/diploma-inquiry', label: 'Diploma Inquiry' },
 ]
 
+const STUDENT_PORTAL_URL = process.env.NEXT_PUBLIC_STUDENT_PORTAL_URL || 'http://localhost:3001'
+
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -99,7 +101,16 @@ export default function Header() {
                   )}
                 </div>
               ))}
-              <Link href="/apply" className="ml-3 px-5 py-2 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary-dark transition-colors shadow-sm hover:shadow-md">
+              <a
+                href={STUDENT_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-3 px-4 py-2 border border-primary text-primary rounded-lg font-semibold text-sm hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Student Login
+              </a>
+              <Link href="/apply" className="ml-2 px-5 py-2 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary-dark transition-colors shadow-sm hover:shadow-md">
                 Apply Now
               </Link>
             </nav>
@@ -131,7 +142,16 @@ export default function Header() {
                   ))}
                 </div>
               ))}
-              <Link href="/apply" className="block py-2.5 px-4 bg-primary text-white rounded-lg font-semibold text-center mt-3" onClick={() => setMobileOpen(false)}>
+              <a
+                href={STUDENT_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block py-2.5 px-4 border border-primary text-primary rounded-lg font-semibold text-center mt-3"
+                onClick={() => setMobileOpen(false)}
+              >
+                Student Login
+              </a>
+              <Link href="/apply" className="block py-2.5 px-4 bg-primary text-white rounded-lg font-semibold text-center mt-2" onClick={() => setMobileOpen(false)}>
                 Apply Now
               </Link>
             </nav>
