@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import './globals.css'
 
 const SITE_URL = 'https://gua.edu.pl'
 const SITE_NAME = 'Global University of America'
+const GA_MEASUREMENT_ID = 'G-TCQ8GQ1YGB'
 const SITE_SHORT = 'GUA'
 
 export const metadata: Metadata = {
@@ -152,6 +154,18 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col">
         {children}
       </body>
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}');
+        `}
+      </Script>
     </html>
   )
 }
