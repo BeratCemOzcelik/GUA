@@ -211,3 +211,28 @@ export const assignmentSubmissionsApi = {
     return response.data
   },
 }
+
+// Notifications API
+export const notificationsApi = {
+  getMine: async (opts?: { unreadOnly?: boolean; page?: number; pageSize?: number }) => {
+    const params = new URLSearchParams()
+    if (opts?.unreadOnly) params.append('unreadOnly', 'true')
+    if (opts?.page) params.append('page', opts.page.toString())
+    if (opts?.pageSize) params.append('pageSize', opts.pageSize.toString())
+    const qs = params.toString()
+    const response = await api.get(`/notifications/me${qs ? '?' + qs : ''}`)
+    return response.data
+  },
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/unread-count')
+    return response.data
+  },
+  markRead: async (id: number) => {
+    const response = await api.put(`/notifications/${id}/read`)
+    return response.data
+  },
+  markAllRead: async () => {
+    const response = await api.put('/notifications/mark-all-read')
+    return response.data
+  },
+}

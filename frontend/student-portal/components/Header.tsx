@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function Header() {
   const pathname = usePathname()
@@ -47,9 +48,10 @@ export default function Header() {
           ))}
         </div>
 
-        {/* Welcome Message */}
+        {/* Welcome Message + Notifications */}
         {user && (
           <div className="flex items-center space-x-3">
+            <NotificationBell />
             <div className="text-right">
               <p className="text-sm text-gray-600">Welcome back,</p>
               <p className="text-sm font-semibold text-gray-900">

@@ -2,6 +2,7 @@ using GUA.Core.Entities;
 using GUA.Core.Interfaces;
 using GUA.Shared.DTOs.Common;
 using GUA.Shared.DTOs.Grade;
+using GUA.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -23,6 +24,7 @@ public class GradesController : ControllerBase
     private readonly IRepository<Course> _courseRepository;
     private readonly IRepository<AcademicTerm> _termRepository;
     private readonly IRepository<FinalGrade> _finalGradeRepository;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<GradesController> _logger;
 
     public GradesController(
@@ -36,6 +38,7 @@ public class GradesController : ControllerBase
         IRepository<Course> courseRepository,
         IRepository<AcademicTerm> termRepository,
         IRepository<FinalGrade> finalGradeRepository,
+        INotificationService notificationService,
         ILogger<GradesController> logger)
     {
         _repository = repository;
@@ -48,7 +51,42 @@ public class GradesController : ControllerBase
         _courseRepository = courseRepository;
         _termRepository = termRepository;
         _finalGradeRepository = finalGradeRepository;
+        _notificationService = notificationService;
         _logger = logger;
+    }
+
+    private async Task NotifyStudentGradeAsync(Grade grade, GradeComponent component, NotificationType type)
+    {
+        try
+        {
+            var enrollment = await _enrollmentRepository.GetByIdAsync(grade.EnrollmentId);
+            if (enrollment == null) return;
+
+            var student = await _studentRepository.GetByIdAsync(enrollment.StudentId);
+            if (student == null) return;
+
+            var offering = await _offeringRepository.GetByIdAsync(enrollment.CourseOfferingId);
+            var course = offering != null ? await _courseRepository.GetByIdAsync(offering.CourseId) : null;
+            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
+
+            var verb = type == NotificationType.GradeUpdated ? "updated" : "posted";
+            var title = type == NotificationType.GradeUpdated ? "Grade updated" : "New grade posted";
+            var message = $"Your grade for \"{component.Name}\" in {courseLabel} has been {verb}: {grade.Score}/{component.MaxScore}.";
+            var actionUrl = $"/grades/{enrollment.Id}";
+
+            await _notificationService.NotifyAsync(
+                student.UserId,
+                title,
+                message,
+                type,
+                relatedEntityType: "Grade",
+                relatedEntityId: grade.Id,
+                actionUrl: actionUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send grade notification for grade {GradeId}", grade.Id);
+        }
     }
 
     [HttpGet]
@@ -531,6 +569,10 @@ public class GradesController : ControllerBase
             };
 
             var created = await _repository.AddAsync(grade);
+
+            // Fire-and-forget notification (logged on failure inside helper)
+            _ = NotifyStudentGradeAsync(created, component, NotificationType.GradePosted);
+
             var dto = await MapToGradeDto(created);
 
             return CreatedAtAction(nameof(GetById), new { id = dto.Id },
@@ -620,6 +662,7 @@ public class GradesController : ControllerBase
 
                         await _repository.UpdateAsync(existingGrade);
                         createdGrades.Add(existingGrade);
+                        _ = NotifyStudentGradeAsync(existingGrade, component, NotificationType.GradeUpdated);
                     }
                     else
                     {
@@ -637,6 +680,7 @@ public class GradesController : ControllerBase
 
                         var created = await _repository.AddAsync(grade);
                         createdGrades.Add(created);
+                        _ = NotifyStudentGradeAsync(created, component, NotificationType.GradePosted);
                     }
                 }
                 catch (Exception ex)
@@ -727,6 +771,9 @@ public class GradesController : ControllerBase
             grade.UpdatedAt = DateTime.UtcNow;
 
             await _repository.UpdateAsync(grade);
+
+            _ = NotifyStudentGradeAsync(grade, component, NotificationType.GradeUpdated);
+
             var dto = await MapToGradeDto(grade);
 
             return Ok(ApiResponse<GradeDto>.SuccessResult(dto, "Grade updated successfully"));

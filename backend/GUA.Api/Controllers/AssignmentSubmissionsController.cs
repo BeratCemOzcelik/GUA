@@ -18,10 +18,12 @@ public class AssignmentSubmissionsController : ControllerBase
     private readonly IRepository<GradeComponent> _componentRepository;
     private readonly IRepository<Enrollment> _enrollmentRepository;
     private readonly IRepository<StudentProfile> _studentRepository;
+    private readonly IRepository<FacultyProfile> _facultyRepository;
     private readonly IRepository<Grade> _gradeRepository;
     private readonly IRepository<CourseOffering> _offeringRepository;
     private readonly IRepository<Course> _courseRepository;
     private readonly IRepository<User> _userRepository;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<AssignmentSubmissionsController> _logger;
 
     public AssignmentSubmissionsController(
@@ -29,21 +31,61 @@ public class AssignmentSubmissionsController : ControllerBase
         IRepository<GradeComponent> componentRepository,
         IRepository<Enrollment> enrollmentRepository,
         IRepository<StudentProfile> studentRepository,
+        IRepository<FacultyProfile> facultyRepository,
         IRepository<Grade> gradeRepository,
         IRepository<CourseOffering> offeringRepository,
         IRepository<Course> courseRepository,
         IRepository<User> userRepository,
+        INotificationService notificationService,
         ILogger<AssignmentSubmissionsController> logger)
     {
         _repository = repository;
         _componentRepository = componentRepository;
         _enrollmentRepository = enrollmentRepository;
         _studentRepository = studentRepository;
+        _facultyRepository = facultyRepository;
         _gradeRepository = gradeRepository;
         _offeringRepository = offeringRepository;
         _courseRepository = courseRepository;
         _userRepository = userRepository;
+        _notificationService = notificationService;
         _logger = logger;
+    }
+
+    private async Task NotifyFacultySubmissionAsync(AssignmentSubmission submission, GradeComponent component, StudentProfile student)
+    {
+        try
+        {
+            var offering = await _offeringRepository.GetByIdAsync(component.CourseOfferingId);
+            if (offering == null) return;
+
+            var faculty = await _facultyRepository.GetByIdAsync(offering.FacultyProfileId);
+            if (faculty == null) return;
+
+            var course = await _courseRepository.GetByIdAsync(offering.CourseId);
+            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
+
+            var studentUser = await _userRepository.GetByIdAsync(student.UserId);
+            var studentName = studentUser != null ? $"{studentUser.FirstName} {studentUser.LastName}" : student.StudentNumber;
+
+            var title = "New assignment submission";
+            var lateNote = submission.Status == SubmissionStatus.Late ? " (late)" : "";
+            var message = $"{studentName} submitted \"{component.Name}\" for {courseLabel}{lateNote}. Please review and grade.";
+            var actionUrl = $"/grades/submissions/{component.Id}";
+
+            await _notificationService.NotifyAsync(
+                faculty.UserId,
+                title,
+                message,
+                NotificationType.SubmissionReceived,
+                relatedEntityType: "AssignmentSubmission",
+                relatedEntityId: submission.Id,
+                actionUrl: actionUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send submission notification for submission {SubmissionId}", submission.Id);
+        }
     }
 
     [HttpPost]
@@ -122,6 +164,8 @@ public class AssignmentSubmissionsController : ControllerBase
             };
 
             await _repository.AddAsync(submission);
+
+            _ = NotifyFacultySubmissionAsync(submission, component, student);
 
             var dto = await MapToDto(submission);
             return Ok(ApiResponse<AssignmentSubmissionDto>.SuccessResult(dto));
