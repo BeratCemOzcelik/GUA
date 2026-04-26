@@ -3,22 +3,23 @@ using GUA.Core.Interfaces;
 using GUA.Infrastructure.Data;
 using GUA.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace GUA.Infrastructure.Services;
 
 public class NotificationService : INotificationService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IEmailService _emailService;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
-        ApplicationDbContext context,
+        IServiceScopeFactory scopeFactory,
         IEmailService emailService,
         ILogger<NotificationService> logger)
     {
-        _context = context;
+        _scopeFactory = scopeFactory;
         _emailService = emailService;
         _logger = logger;
     }
@@ -35,6 +36,11 @@ public class NotificationService : INotificationService
     {
         try
         {
+            // Use an isolated DbContext scope so this method is safe to invoke as fire-and-forget
+            // from controllers (avoids "second operation started on this context" race conditions).
+            using var scope = _scopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
             var notification = new Notification
             {
                 RecipientUserId = recipientUserId,
@@ -48,12 +54,12 @@ public class NotificationService : INotificationService
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.Notifications.Add(notification);
-            await _context.SaveChangesAsync();
+            context.Notifications.Add(notification);
+            await context.SaveChangesAsync();
 
             if (sendEmail)
             {
-                var recipient = await _context.Users
+                var recipient = await context.Users
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.Id == recipientUserId);
 
