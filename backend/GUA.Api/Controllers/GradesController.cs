@@ -55,39 +55,6 @@ public class GradesController : ControllerBase
         _logger = logger;
     }
 
-    private async Task NotifyStudentGradeAsync(Grade grade, GradeComponent component, NotificationType type)
-    {
-        try
-        {
-            var enrollment = await _enrollmentRepository.GetByIdAsync(grade.EnrollmentId);
-            if (enrollment == null) return;
-
-            var student = await _studentRepository.GetByIdAsync(enrollment.StudentId);
-            if (student == null) return;
-
-            var offering = await _offeringRepository.GetByIdAsync(enrollment.CourseOfferingId);
-            var course = offering != null ? await _courseRepository.GetByIdAsync(offering.CourseId) : null;
-            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
-
-            var verb = type == NotificationType.GradeUpdated ? "updated" : "posted";
-            var title = type == NotificationType.GradeUpdated ? "Grade updated" : "New grade posted";
-            var message = $"Your grade for \"{component.Name}\" in {courseLabel} has been {verb}: {grade.Score}/{component.MaxScore}.";
-            var actionUrl = $"/grades/{enrollment.Id}";
-
-            await _notificationService.NotifyAsync(
-                student.UserId,
-                title,
-                message,
-                type,
-                relatedEntityType: "Grade",
-                relatedEntityId: grade.Id,
-                actionUrl: actionUrl);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send grade notification for grade {GradeId}", grade.Id);
-        }
-    }
 
     [HttpGet]
     [Authorize(Roles = "Admin,SuperAdmin,Faculty")]
@@ -570,8 +537,7 @@ public class GradesController : ControllerBase
 
             var created = await _repository.AddAsync(grade);
 
-            // Fire-and-forget notification (logged on failure inside helper)
-            _ = NotifyStudentGradeAsync(created, component, NotificationType.GradePosted);
+            _ = _notificationService.NotifyGradePostedAsync(created.Id, NotificationType.GradePosted);
 
             var dto = await MapToGradeDto(created);
 
@@ -662,7 +628,7 @@ public class GradesController : ControllerBase
 
                         await _repository.UpdateAsync(existingGrade);
                         createdGrades.Add(existingGrade);
-                        _ = NotifyStudentGradeAsync(existingGrade, component, NotificationType.GradeUpdated);
+                        _ = _notificationService.NotifyGradePostedAsync(existingGrade.Id, NotificationType.GradeUpdated);
                     }
                     else
                     {
@@ -680,7 +646,7 @@ public class GradesController : ControllerBase
 
                         var created = await _repository.AddAsync(grade);
                         createdGrades.Add(created);
-                        _ = NotifyStudentGradeAsync(created, component, NotificationType.GradePosted);
+                        _ = _notificationService.NotifyGradePostedAsync(created.Id, NotificationType.GradePosted);
                     }
                 }
                 catch (Exception ex)
@@ -772,7 +738,7 @@ public class GradesController : ControllerBase
 
             await _repository.UpdateAsync(grade);
 
-            _ = NotifyStudentGradeAsync(grade, component, NotificationType.GradeUpdated);
+            _ = _notificationService.NotifyGradePostedAsync(grade.Id, NotificationType.GradeUpdated);
 
             var dto = await MapToGradeDto(grade);
 

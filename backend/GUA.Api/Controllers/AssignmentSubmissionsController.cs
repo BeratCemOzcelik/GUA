@@ -52,41 +52,6 @@ public class AssignmentSubmissionsController : ControllerBase
         _logger = logger;
     }
 
-    private async Task NotifyFacultySubmissionAsync(AssignmentSubmission submission, GradeComponent component, StudentProfile student)
-    {
-        try
-        {
-            var offering = await _offeringRepository.GetByIdAsync(component.CourseOfferingId);
-            if (offering == null) return;
-
-            var faculty = await _facultyRepository.GetByIdAsync(offering.FacultyProfileId);
-            if (faculty == null) return;
-
-            var course = await _courseRepository.GetByIdAsync(offering.CourseId);
-            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
-
-            var studentUser = await _userRepository.GetByIdAsync(student.UserId);
-            var studentName = studentUser != null ? $"{studentUser.FirstName} {studentUser.LastName}" : student.StudentNumber;
-
-            var title = "New assignment submission";
-            var lateNote = submission.Status == SubmissionStatus.Late ? " (late)" : "";
-            var message = $"{studentName} submitted \"{component.Name}\" for {courseLabel}{lateNote}. Please review and grade.";
-            var actionUrl = $"/grades/submissions/{component.Id}";
-
-            await _notificationService.NotifyAsync(
-                faculty.UserId,
-                title,
-                message,
-                NotificationType.SubmissionReceived,
-                relatedEntityType: "AssignmentSubmission",
-                relatedEntityId: submission.Id,
-                actionUrl: actionUrl);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send submission notification for submission {SubmissionId}", submission.Id);
-        }
-    }
 
     [HttpPost]
     [Authorize(Roles = "Student")]
@@ -165,7 +130,7 @@ public class AssignmentSubmissionsController : ControllerBase
 
             await _repository.AddAsync(submission);
 
-            _ = NotifyFacultySubmissionAsync(submission, component, student);
+            _ = _notificationService.NotifySubmissionReceivedAsync(submission.Id);
 
             var dto = await MapToDto(submission);
             return Ok(ApiResponse<AssignmentSubmissionDto>.SuccessResult(dto));

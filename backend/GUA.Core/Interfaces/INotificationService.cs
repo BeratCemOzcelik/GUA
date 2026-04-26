@@ -13,4 +13,7 @@ public interface INotificationService
         int? relatedEntityId = null,
         string? actionUrl = null,
         bool sendEmail = true);
+
+    Task NotifyGradePostedAsync(int gradeId, NotificationType type);
+    Task NotifySubmissionReceivedAsync(int submissionId);
 }

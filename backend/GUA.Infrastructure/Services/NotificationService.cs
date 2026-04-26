@@ -77,6 +77,125 @@ public class NotificationService : INotificationService
         }
     }
 
+    public async Task NotifyGradePostedAsync(int gradeId, NotificationType type)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var ctx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var grade = await ctx.Grades.AsNoTracking().FirstOrDefaultAsync(g => g.Id == gradeId);
+            if (grade == null) return;
+
+            var component = await ctx.GradeComponents.AsNoTracking().FirstOrDefaultAsync(c => c.Id == grade.GradeComponentId);
+            if (component == null) return;
+
+            var enrollment = await ctx.Enrollments.AsNoTracking().FirstOrDefaultAsync(e => e.Id == grade.EnrollmentId);
+            if (enrollment == null) return;
+
+            var student = await ctx.StudentProfiles.AsNoTracking().FirstOrDefaultAsync(s => s.Id == enrollment.StudentId);
+            if (student == null) return;
+
+            var offering = await ctx.CourseOfferings.AsNoTracking().FirstOrDefaultAsync(o => o.Id == enrollment.CourseOfferingId);
+            var course = offering != null
+                ? await ctx.Courses.AsNoTracking().FirstOrDefaultAsync(c => c.Id == offering.CourseId)
+                : null;
+            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
+
+            var verb = type == NotificationType.GradeUpdated ? "updated" : "posted";
+            var title = type == NotificationType.GradeUpdated ? "Grade updated" : "New grade posted";
+            var message = $"Your grade for \"{component.Name}\" in {courseLabel} has been {verb}: {grade.Score}/{component.MaxScore}.";
+            var actionUrl = $"/grades/{enrollment.Id}";
+
+            await PersistAndEmailAsync(ctx, student.UserId, title, message, type, "Grade", grade.Id, actionUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send grade notification for grade {GradeId}", gradeId);
+        }
+    }
+
+    public async Task NotifySubmissionReceivedAsync(int submissionId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var ctx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var submission = await ctx.AssignmentSubmissions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == submissionId);
+            if (submission == null) return;
+
+            var component = await ctx.GradeComponents.AsNoTracking().FirstOrDefaultAsync(c => c.Id == submission.GradeComponentId);
+            if (component == null) return;
+
+            var offering = await ctx.CourseOfferings.AsNoTracking().FirstOrDefaultAsync(o => o.Id == component.CourseOfferingId);
+            if (offering == null) return;
+
+            var faculty = await ctx.FacultyProfiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == offering.FacultyProfileId);
+            if (faculty == null) return;
+
+            var enrollment = await ctx.Enrollments.AsNoTracking().FirstOrDefaultAsync(e => e.Id == submission.EnrollmentId);
+            var student = enrollment != null
+                ? await ctx.StudentProfiles.AsNoTracking().FirstOrDefaultAsync(s => s.Id == enrollment.StudentId)
+                : null;
+            var studentUser = student != null
+                ? await ctx.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == student.UserId)
+                : null;
+            var studentName = studentUser != null
+                ? $"{studentUser.FirstName} {studentUser.LastName}"
+                : (student?.StudentNumber ?? "A student");
+
+            var course = await ctx.Courses.AsNoTracking().FirstOrDefaultAsync(c => c.Id == offering.CourseId);
+            var courseLabel = course != null ? $"{course.Code} - {course.Name}" : "your course";
+
+            var lateNote = submission.Status == SubmissionStatus.Late ? " (late)" : "";
+            var title = "New assignment submission";
+            var message = $"{studentName} submitted \"{component.Name}\" for {courseLabel}{lateNote}. Please review and grade.";
+            var actionUrl = $"/grades/submissions/{component.Id}";
+
+            await PersistAndEmailAsync(ctx, faculty.UserId, title, message, NotificationType.SubmissionReceived, "AssignmentSubmission", submission.Id, actionUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send submission notification for submission {SubmissionId}", submissionId);
+        }
+    }
+
+    private async Task PersistAndEmailAsync(
+        ApplicationDbContext ctx,
+        Guid recipientUserId,
+        string title,
+        string message,
+        NotificationType type,
+        string? relatedEntityType,
+        int? relatedEntityId,
+        string? actionUrl)
+    {
+        var notification = new Notification
+        {
+            RecipientUserId = recipientUserId,
+            Title = title,
+            Message = message,
+            Type = type,
+            RelatedEntityType = relatedEntityType,
+            RelatedEntityId = relatedEntityId,
+            ActionUrl = actionUrl,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        ctx.Notifications.Add(notification);
+        await ctx.SaveChangesAsync();
+
+        var recipient = await ctx.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == recipientUserId);
+        if (recipient != null && !string.IsNullOrWhiteSpace(recipient.Email))
+        {
+            var recipientName = $"{recipient.FirstName} {recipient.LastName}".Trim();
+            var html = BuildEmailHtml(recipientName, title, message, actionUrl);
+            await _emailService.SendEmailAsync(recipient.Email, title, html);
+        }
+    }
+
     private static string BuildEmailHtml(string recipientName, string title, string message, string? actionUrl)
     {
         var ctaButton = string.IsNullOrWhiteSpace(actionUrl)
