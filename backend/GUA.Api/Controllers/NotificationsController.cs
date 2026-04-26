@@ -136,4 +136,39 @@ public class NotificationsController : ControllerBase
 
         return Ok(ApiResponse<int>.SuccessResult(unread.Count, $"Marked {unread.Count} as read"));
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(int id)
+    {
+        var userId = CurrentUserId();
+        if (userId == null)
+            return Unauthorized(ApiResponse<bool>.FailureResult("Invalid user token"));
+
+        // Ownership scope: a user can only delete their own notifications.
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.Id == id && n.RecipientUserId == userId.Value);
+
+        if (notification == null)
+            return NotFound(ApiResponse<bool>.FailureResult("Notification not found"));
+
+        _context.Notifications.Remove(notification);
+        await _context.SaveChangesAsync();
+
+        return Ok(ApiResponse<bool>.SuccessResult(true, "Notification deleted"));
+    }
+
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<int>>> DeleteAll()
+    {
+        var userId = CurrentUserId();
+        if (userId == null)
+            return Unauthorized(ApiResponse<int>.FailureResult("Invalid user token"));
+
+        // Bulk delete uses a server-side filter so other users' notifications cannot be touched.
+        var deleted = await _context.Notifications
+            .Where(n => n.RecipientUserId == userId.Value)
+            .ExecuteDeleteAsync();
+
+        return Ok(ApiResponse<int>.SuccessResult(deleted, $"Cleared {deleted} notifications"));
+    }
 }

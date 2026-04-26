@@ -257,6 +257,14 @@ export const notificationsApi = {
     const response = await api.put('/notifications/mark-all-read')
     return response.data
   },
+  delete: async (id: number) => {
+    const response = await api.delete(`/notifications/${id}`)
+    return response.data
+  },
+  deleteAll: async () => {
+    const response = await api.delete('/notifications')
+    return response.data
+  },
 }
 
 // Payments API
