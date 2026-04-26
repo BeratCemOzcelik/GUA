@@ -146,8 +146,9 @@ export default function CourseOfferingMaterialsPage() {
       formData.append('file', file)
       formData.append('folder', 'assignments')
 
-      // Do NOT set Content-Type manually — axios will compute the multipart boundary automatically.
-      const uploadRes = await api.post('/Files/upload', formData)
+      const uploadRes = await api.post('/Files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
 
       if (!uploadRes.data?.success || !uploadRes.data?.data?.fileUrl) {
         throw new Error(uploadRes.data?.message || 'File upload failed')
