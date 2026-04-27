@@ -7,11 +7,16 @@ import Footer from '@/components/Footer'
 import WhatsAppWidget from '@/components/WhatsAppWidget'
 import { facultyApi, getFileUrl } from '@/lib/api'
 
+// Temporarily disabled until faculty profiles & photos are ready.
+// Set COMING_SOON to false to restore normal loading behaviour.
+const COMING_SOON = true
+
 export default function FacultyPage() {
   const [faculty, setFaculty] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    if (COMING_SOON) return
     loadData()
   }, [])
 

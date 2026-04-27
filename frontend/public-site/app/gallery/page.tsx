@@ -6,6 +6,10 @@ import Footer from '@/components/Footer'
 import WhatsAppWidget from '@/components/WhatsAppWidget'
 import { galleryApi, getFileUrl } from '@/lib/api'
 
+// Temporarily disabled until gallery images are ready.
+// Set COMING_SOON to false to restore normal loading behaviour.
+const COMING_SOON = true
+
 export default function GalleryPage() {
   const [items, setItems] = useState<any[]>([])
   const [filteredItems, setFilteredItems] = useState<any[]>([])
@@ -15,6 +19,7 @@ export default function GalleryPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    if (COMING_SOON) return
     loadData()
   }, [])
 
