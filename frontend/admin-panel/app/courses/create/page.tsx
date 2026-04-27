@@ -14,7 +14,7 @@ import Textarea from '@/components/ui/Textarea'
 const courseSchema = z.object({
   code: z.string().min(2, 'Code must be at least 2 characters').max(20, 'Code must be at most 20 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  departmentId: z.number().min(1, 'Please select a department'),
+  departmentId: z.number().nullable().optional(),
   credits: z.number().min(1, 'Credits must be at least 1').max(10, 'Credits must be at most 10'),
   description: z.string().optional(),
   syllabus: z.string().optional(),
@@ -115,14 +115,15 @@ export default function CreateCoursePage() {
           />
 
           <Select
-            label="Department"
-            required
+            label="Department (optional)"
             error={errors.departmentId?.message}
-            options={departments.map((dept) => ({
-              value: dept.id,
-              label: dept.name,
-            }))}
-            {...register('departmentId', { valueAsNumber: true })}
+            options={[
+              { value: '', label: '— None / Cross-listed —' },
+              ...departments.map((dept) => ({ value: dept.id, label: dept.name })),
+            ]}
+            {...register('departmentId', {
+              setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
+            })}
           />
 
           <Textarea

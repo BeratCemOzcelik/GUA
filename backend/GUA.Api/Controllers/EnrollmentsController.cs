@@ -24,6 +24,7 @@ public class EnrollmentsController : ControllerBase
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<FinalGrade> _finalGradeRepository;
     private readonly IRepository<AcademicProgram> _programRepository;
+    private readonly IRepository<ProgramCourse> _programCourseRepository;
     private readonly ILogger<EnrollmentsController> _logger;
 
     public EnrollmentsController(
@@ -36,6 +37,7 @@ public class EnrollmentsController : ControllerBase
         IRepository<User> userRepository,
         IRepository<FinalGrade> finalGradeRepository,
         IRepository<AcademicProgram> programRepository,
+        IRepository<ProgramCourse> programCourseRepository,
         ILogger<EnrollmentsController> logger)
     {
         _repository = repository;
@@ -47,6 +49,7 @@ public class EnrollmentsController : ControllerBase
         _userRepository = userRepository;
         _finalGradeRepository = finalGradeRepository;
         _programRepository = programRepository;
+        _programCourseRepository = programCourseRepository;
         _logger = logger;
     }
 
@@ -315,10 +318,6 @@ public class EnrollmentsController : ControllerBase
                 return NotFound(ApiResponse<IEnumerable<AvailableCourseOfferingDto>>.FailureResult("Student not found"));
             }
 
-            // Get student's program to determine department
-            var program = await _programRepository.GetByIdAsync(student.ProgramId);
-            var studentDepartmentId = program?.DepartmentId;
-
             // Get active course offerings
             var offerings = await _offeringRepository.GetAllAsync();
             offerings = offerings.Where(o => o.IsActive).ToList();
@@ -347,14 +346,20 @@ public class EnrollmentsController : ControllerBase
             // Load related data
             var courses = await _courseRepository.GetAllAsync();
 
-            // Filter offerings by student's department (only courses from their program's department)
-            if (!allDepartments && studentDepartmentId.HasValue)
+            // Filter offerings by the student's program curriculum (only courses listed in ProgramCourses).
+            // This correctly handles cross-listed core courses (ECO101, ENG101, etc.) which historically
+            // were filtered out when the previous filter looked at Course.DepartmentId only.
+            if (!allDepartments)
             {
-                var departmentCourseIds = courses
-                    .Where(c => c.DepartmentId == studentDepartmentId.Value)
-                    .Select(c => c.Id)
+                var programCourses = await _programCourseRepository.GetAllAsync();
+                var curriculumCourseIds = programCourses
+                    .Where(pc => pc.ProgramId == student.ProgramId)
+                    .Select(pc => pc.CourseId)
                     .ToHashSet();
-                offerings = offerings.Where(o => departmentCourseIds.Contains(o.CourseId)).ToList();
+                if (curriculumCourseIds.Count > 0)
+                {
+                    offerings = offerings.Where(o => curriculumCourseIds.Contains(o.CourseId)).ToList();
+                }
             }
 
             var allTerms = await _termRepository.GetAllAsync();

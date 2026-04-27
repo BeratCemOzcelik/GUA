@@ -129,7 +129,8 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Department)
                 .WithMany(d => d.Courses)
                 .HasForeignKey(e => e.DepartmentId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ProgramCourse (junction between Program and Course — curriculum)

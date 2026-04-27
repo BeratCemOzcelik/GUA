@@ -2,7 +2,7 @@ namespace GUA.Shared.DTOs.Course;
 
 public class UpdateCourseRequest
 {
-    public int DepartmentId { get; set; }
+    public int? DepartmentId { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Credits { get; set; }

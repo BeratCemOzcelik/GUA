@@ -37,7 +37,9 @@ public class CoursesController : ControllerBase
 
             foreach (var course in courses)
             {
-                var department = await _departmentRepository.GetByIdAsync(course.DepartmentId);
+                Department? department = null;
+                if (course.DepartmentId.HasValue)
+                    department = await _departmentRepository.GetByIdAsync(course.DepartmentId.Value);
                 dtos.Add(new CourseDto
                 {
                     Id = course.Id,
@@ -47,7 +49,7 @@ public class CoursesController : ControllerBase
                     Description = course.Description,
                     Syllabus = course.Syllabus,
                     DepartmentId = course.DepartmentId,
-                    DepartmentName = department?.Name ?? string.Empty,
+                    DepartmentName = department?.Name,
                     IsActive = course.IsActive,
                     CreatedAt = course.CreatedAt
                 });
@@ -76,7 +78,9 @@ public class CoursesController : ControllerBase
                 return NotFound(ApiResponse<CourseDto>.FailureResult("Course not found"));
             }
 
-            var department = await _departmentRepository.GetByIdAsync(course.DepartmentId);
+            Department? department = null;
+            if (course.DepartmentId.HasValue)
+                department = await _departmentRepository.GetByIdAsync(course.DepartmentId.Value);
             var dto = new CourseDto
             {
                 Id = course.Id,
@@ -86,7 +90,7 @@ public class CoursesController : ControllerBase
                 Description = course.Description,
                 Syllabus = course.Syllabus,
                 DepartmentId = course.DepartmentId,
-                DepartmentName = department?.Name ?? string.Empty,
+                DepartmentName = department?.Name,
                 IsActive = course.IsActive,
                 CreatedAt = course.CreatedAt
             };
@@ -119,12 +123,16 @@ public class CoursesController : ControllerBase
                     "Credits must be greater than 0"));
             }
 
-            // Check if department exists
-            var department = await _departmentRepository.GetByIdAsync(request.DepartmentId);
-            if (department == null)
+            // Department is optional. If provided, validate it exists.
+            Department? department = null;
+            if (request.DepartmentId.HasValue)
             {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Department not found"));
+                department = await _departmentRepository.GetByIdAsync(request.DepartmentId.Value);
+                if (department == null)
+                {
+                    return BadRequest(ApiResponse<CourseDto>.FailureResult(
+                        "Department not found"));
+                }
             }
 
             // Check if code already exists
@@ -157,7 +165,7 @@ public class CoursesController : ControllerBase
                 Description = created.Description,
                 Syllabus = created.Syllabus,
                 DepartmentId = created.DepartmentId,
-                DepartmentName = department.Name,
+                DepartmentName = department?.Name,
                 IsActive = created.IsActive,
                 CreatedAt = created.CreatedAt
             };
@@ -198,12 +206,16 @@ public class CoursesController : ControllerBase
                     "Credits must be greater than 0"));
             }
 
-            // Check if department exists
-            var department = await _departmentRepository.GetByIdAsync(request.DepartmentId);
-            if (department == null)
+            // Department is optional. If provided, validate it exists.
+            Department? department = null;
+            if (request.DepartmentId.HasValue)
             {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Department not found"));
+                department = await _departmentRepository.GetByIdAsync(request.DepartmentId.Value);
+                if (department == null)
+                {
+                    return BadRequest(ApiResponse<CourseDto>.FailureResult(
+                        "Department not found"));
+                }
             }
 
             // Check if code already exists for another course
@@ -233,7 +245,7 @@ public class CoursesController : ControllerBase
                 Description = course.Description,
                 Syllabus = course.Syllabus,
                 DepartmentId = course.DepartmentId,
-                DepartmentName = department.Name,
+                DepartmentName = department?.Name,
                 IsActive = course.IsActive,
                 CreatedAt = course.CreatedAt
             };
