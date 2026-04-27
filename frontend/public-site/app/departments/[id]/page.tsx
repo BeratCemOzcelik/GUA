@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import WhatsAppWidget from '@/components/WhatsAppWidget'
-import { departmentsApi, programsApi, coursesApi } from '@/lib/api'
+import { departmentsApi, programsApi, coursesApi, curriculumApi } from '@/lib/api'
 
 export default function DepartmentDetailPage() {
   const params = useParams()
@@ -28,8 +28,23 @@ export default function DepartmentDetailPage() {
         programsApi.getAll(),
         coursesApi.getAll(),
       ])
-      setPrograms((progRes.data || []).filter((p: any) => p.departmentId === id))
-      setCourses((courseRes.data || []).filter((c: any) => c.departmentId === id))
+      const deptPrograms = (progRes.data || []).filter((p: any) => p.departmentId === id)
+      setPrograms(deptPrograms)
+
+      // Aggregate courses appearing in any of this department's program curricula.
+      // (Course no longer carries a department; it lives inside one or more programs via ProgramCourse.)
+      const curricula = await Promise.all(
+        deptPrograms.map((p: any) => curriculumApi.get(p.id).catch(() => null))
+      )
+      const courseIds = new Set<number>()
+      for (const c of curricula) {
+        const years = c?.data?.years || []
+        for (const y of years) {
+          for (const cc of (y.courses || [])) courseIds.add(cc.courseId)
+        }
+      }
+      const allCourses = courseRes.data || []
+      setCourses(allCourses.filter((c: any) => courseIds.has(c.id)))
     } catch (error) {
       console.error('Failed to load:', error)
     } finally {

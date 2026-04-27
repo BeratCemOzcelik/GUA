@@ -13,18 +13,27 @@ namespace GUA.Api.Controllers;
 public class CoursesController : ControllerBase
 {
     private readonly IRepository<Course> _repository;
-    private readonly IRepository<Department> _departmentRepository;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
         IRepository<Course> repository,
-        IRepository<Department> departmentRepository,
         ILogger<CoursesController> logger)
     {
         _repository = repository;
-        _departmentRepository = departmentRepository;
         _logger = logger;
     }
+
+    private static CourseDto ToDto(Course course) => new()
+    {
+        Id = course.Id,
+        Code = course.Code,
+        Name = course.Name,
+        Credits = course.Credits,
+        Description = course.Description,
+        Syllabus = course.Syllabus,
+        IsActive = course.IsActive,
+        CreatedAt = course.CreatedAt
+    };
 
     [HttpGet]
     [AllowAnonymous]
@@ -33,29 +42,7 @@ public class CoursesController : ControllerBase
         try
         {
             var courses = await _repository.GetAllAsync();
-            var dtos = new List<CourseDto>();
-
-            foreach (var course in courses)
-            {
-                Department? department = null;
-                if (course.DepartmentId.HasValue)
-                    department = await _departmentRepository.GetByIdAsync(course.DepartmentId.Value);
-                dtos.Add(new CourseDto
-                {
-                    Id = course.Id,
-                    Code = course.Code,
-                    Name = course.Name,
-                    Credits = course.Credits,
-                    Description = course.Description,
-                    Syllabus = course.Syllabus,
-                    DepartmentId = course.DepartmentId,
-                    DepartmentName = department?.Name,
-                    IsActive = course.IsActive,
-                    CreatedAt = course.CreatedAt
-                });
-            }
-
-            return Ok(ApiResponse<IEnumerable<CourseDto>>.SuccessResult(dtos));
+            return Ok(ApiResponse<IEnumerable<CourseDto>>.SuccessResult(courses.Select(ToDto)));
         }
         catch (Exception ex)
         {
@@ -72,30 +59,10 @@ public class CoursesController : ControllerBase
         try
         {
             var course = await _repository.GetByIdAsync(id);
-
             if (course == null)
-            {
                 return NotFound(ApiResponse<CourseDto>.FailureResult("Course not found"));
-            }
 
-            Department? department = null;
-            if (course.DepartmentId.HasValue)
-                department = await _departmentRepository.GetByIdAsync(course.DepartmentId.Value);
-            var dto = new CourseDto
-            {
-                Id = course.Id,
-                Code = course.Code,
-                Name = course.Name,
-                Credits = course.Credits,
-                Description = course.Description,
-                Syllabus = course.Syllabus,
-                DepartmentId = course.DepartmentId,
-                DepartmentName = department?.Name,
-                IsActive = course.IsActive,
-                CreatedAt = course.CreatedAt
-            };
-
-            return Ok(ApiResponse<CourseDto>.SuccessResult(dto));
+            return Ok(ApiResponse<CourseDto>.SuccessResult(ToDto(course)));
         }
         catch (Exception ex)
         {
@@ -112,39 +79,16 @@ public class CoursesController : ControllerBase
         try
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Name and code are required"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("Name and code are required"));
 
             if (request.Credits <= 0)
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Credits must be greater than 0"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("Credits must be greater than 0"));
 
-            // Department is optional. If provided, validate it exists.
-            Department? department = null;
-            if (request.DepartmentId.HasValue)
-            {
-                department = await _departmentRepository.GetByIdAsync(request.DepartmentId.Value);
-                if (department == null)
-                {
-                    return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                        "Department not found"));
-                }
-            }
-
-            // Check if code already exists
             if (await _repository.ExistsAsync(c => c.Code == request.Code))
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "A course with this code already exists"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("A course with this code already exists"));
 
             var course = new Course
             {
-                DepartmentId = request.DepartmentId,
                 Code = request.Code,
                 Name = request.Name,
                 Credits = request.Credits,
@@ -155,23 +99,8 @@ public class CoursesController : ControllerBase
             };
 
             var created = await _repository.AddAsync(course);
-
-            var dto = new CourseDto
-            {
-                Id = created.Id,
-                Code = created.Code,
-                Name = created.Name,
-                Credits = created.Credits,
-                Description = created.Description,
-                Syllabus = created.Syllabus,
-                DepartmentId = created.DepartmentId,
-                DepartmentName = department?.Name,
-                IsActive = created.IsActive,
-                CreatedAt = created.CreatedAt
-            };
-
-            return CreatedAtAction(nameof(GetById), new { id = dto.Id },
-                ApiResponse<CourseDto>.SuccessResult(dto, "Course created successfully"));
+            return CreatedAtAction(nameof(GetById), new { id = created.Id },
+                ApiResponse<CourseDto>.SuccessResult(ToDto(created), "Course created successfully"));
         }
         catch (Exception ex)
         {
@@ -188,44 +117,18 @@ public class CoursesController : ControllerBase
         try
         {
             var course = await _repository.GetByIdAsync(id);
-
             if (course == null)
-            {
                 return NotFound(ApiResponse<CourseDto>.FailureResult("Course not found"));
-            }
 
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Name and code are required"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("Name and code are required"));
 
             if (request.Credits <= 0)
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "Credits must be greater than 0"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("Credits must be greater than 0"));
 
-            // Department is optional. If provided, validate it exists.
-            Department? department = null;
-            if (request.DepartmentId.HasValue)
-            {
-                department = await _departmentRepository.GetByIdAsync(request.DepartmentId.Value);
-                if (department == null)
-                {
-                    return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                        "Department not found"));
-                }
-            }
-
-            // Check if code already exists for another course
             if (await _repository.ExistsAsync(c => c.Code == request.Code && c.Id != id))
-            {
-                return BadRequest(ApiResponse<CourseDto>.FailureResult(
-                    "A course with this code already exists"));
-            }
+                return BadRequest(ApiResponse<CourseDto>.FailureResult("A course with this code already exists"));
 
-            course.DepartmentId = request.DepartmentId;
             course.Code = request.Code;
             course.Name = request.Name;
             course.Credits = request.Credits;
@@ -235,22 +138,7 @@ public class CoursesController : ControllerBase
             course.UpdatedAt = DateTime.UtcNow;
 
             await _repository.UpdateAsync(course);
-
-            var dto = new CourseDto
-            {
-                Id = course.Id,
-                Code = course.Code,
-                Name = course.Name,
-                Credits = course.Credits,
-                Description = course.Description,
-                Syllabus = course.Syllabus,
-                DepartmentId = course.DepartmentId,
-                DepartmentName = department?.Name,
-                IsActive = course.IsActive,
-                CreatedAt = course.CreatedAt
-            };
-
-            return Ok(ApiResponse<CourseDto>.SuccessResult(dto, "Course updated successfully"));
+            return Ok(ApiResponse<CourseDto>.SuccessResult(ToDto(course), "Course updated successfully"));
         }
         catch (Exception ex)
         {
@@ -267,14 +155,10 @@ public class CoursesController : ControllerBase
         try
         {
             var course = await _repository.GetByIdAsync(id);
-
             if (course == null)
-            {
                 return NotFound(ApiResponse<bool>.FailureResult("Course not found"));
-            }
 
             await _repository.DeleteAsync(course);
-
             return Ok(ApiResponse<bool>.SuccessResult(true, "Course deleted successfully"));
         }
         catch (Exception ex)

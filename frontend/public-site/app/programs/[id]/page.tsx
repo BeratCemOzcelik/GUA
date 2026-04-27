@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import WhatsAppWidget from '@/components/WhatsAppWidget'
-import { programsApi, departmentsApi, coursesApi, curriculumApi } from '@/lib/api'
+import { programsApi, departmentsApi, curriculumApi } from '@/lib/api'
 
 interface CurriculumCourse {
   id: number
@@ -42,7 +42,6 @@ export default function ProgramDetailPage() {
   const [program, setProgram] = useState<any>(null)
   const [department, setDepartment] = useState<any>(null)
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null)
-  const [fallbackCourses, setFallbackCourses] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -69,13 +68,8 @@ export default function ProgramDetailPage() {
         console.warn('Curriculum fetch failed, falling back to department courses', currErr)
       }
 
-      // Always load fallback for empty curriculum scenarios
-      try {
-        const courseRes = await coursesApi.getAll()
-        setFallbackCourses((courseRes.data || []).filter((c: any) => c.departmentId === prog?.departmentId))
-      } catch (courseErr) {
-        console.warn('Fallback courses fetch failed', courseErr)
-      }
+      // Course no longer has a direct department link; if the program has no curriculum
+      // configured, the courses section will simply be empty.
     } catch (error) {
       console.error('Failed to load:', error)
     } finally {
@@ -218,21 +212,6 @@ export default function ProgramDetailPage() {
                     </div>
                   ))}
               </div>
-            ) : fallbackCourses.length > 0 ? (
-              <div className="space-y-3">
-                {fallbackCourses.map((course) => (
-                  <div key={course.id} className="bg-gray-50 rounded-xl p-5 border border-gray-100 card-hover">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-bold text-gray-900">{course.name}</h3>
-                        <p className="text-sm text-gray-500">{course.code}</p>
-                      </div>
-                      <span className="text-sm text-primary font-semibold">{course.credits} Credits</span>
-                    </div>
-                    {course.description && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{course.description}</p>}
-                  </div>
-                ))}
-              </div>
             ) : (
               <p className="text-gray-600">No courses assigned yet.</p>
             )}
@@ -257,7 +236,7 @@ export default function ProgramDetailPage() {
                 <div className="flex justify-between py-2 border-b border-gray-200">
                   <span className="text-gray-600">Courses</span>
                   <span className="font-medium text-gray-900">
-                    {curriculum && curriculumHasCourses ? totalCurriculumCourses : fallbackCourses.length}
+                    {curriculum && curriculumHasCourses ? totalCurriculumCourses : 0}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-gray-200">

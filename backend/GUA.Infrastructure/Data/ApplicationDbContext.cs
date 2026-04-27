@@ -126,11 +126,8 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Code).IsUnique();
             entity.Property(e => e.Code).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(300);
-            entity.HasOne(e => e.Department)
-                .WithMany(d => d.Courses)
-                .HasForeignKey(e => e.DepartmentId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.SetNull);
+            // Course is no longer linked to a Department directly — it lives inside one or more
+            // Programs through ProgramCourses. Department association can be derived via that path.
         });
 
         // ProgramCourse (junction between Program and Course — curriculum)

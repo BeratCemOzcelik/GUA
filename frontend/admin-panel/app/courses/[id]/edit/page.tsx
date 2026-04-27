@@ -5,16 +5,14 @@ import { useRouter, useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { coursesApi, departmentsApi } from '@/lib/api'
+import { coursesApi } from '@/lib/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
 import Textarea from '@/components/ui/Textarea'
 
 const courseSchema = z.object({
   code: z.string().min(2, 'Code must be at least 2 characters').max(20, 'Code must be at most 20 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  departmentId: z.number().nullable().optional(),
   credits: z.number().min(1, 'Credits must be at least 1').max(10, 'Credits must be at most 10'),
   description: z.string().optional(),
   syllabus: z.string().optional(),
@@ -31,7 +29,6 @@ export default function EditCoursePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([])
 
   const {
     register,
@@ -46,16 +43,10 @@ export default function EditCoursePage() {
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        const [courseResponse, departmentsResponse] = await Promise.all([
-          coursesApi.getById(courseId),
-          departmentsApi.getAll(),
-        ])
-
-        setDepartments(departmentsResponse.data || [])
+        const courseResponse = await coursesApi.getById(courseId)
         reset({
           code: courseResponse.data.code,
           name: courseResponse.data.name,
-          departmentId: courseResponse.data.departmentId ?? null,
           credits: courseResponse.data.credits,
           description: courseResponse.data.description || '',
           syllabus: courseResponse.data.syllabus || '',
@@ -98,13 +89,11 @@ export default function EditCoursePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Edit Course</h1>
         <p className="text-gray-600 mt-1">Update course information</p>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
           <div className="flex items-center">
@@ -114,7 +103,6 @@ export default function EditCoursePage() {
         </div>
       )}
 
-      {/* Form */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
@@ -142,18 +130,6 @@ export default function EditCoursePage() {
             required
             error={errors.name?.message}
             {...register('name')}
-          />
-
-          <Select
-            label="Department (optional)"
-            error={errors.departmentId?.message}
-            options={[
-              { value: '', label: '— None / Cross-listed —' },
-              ...departments.map((dept) => ({ value: dept.id, label: dept.name })),
-            ]}
-            {...register('departmentId', {
-              setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
-            })}
           />
 
           <Textarea

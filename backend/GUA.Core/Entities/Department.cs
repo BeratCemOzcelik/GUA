@@ -10,5 +10,4 @@ public class Department : BaseEntity
 
     // Navigation properties
     public virtual ICollection<Program> Programs { get; set; } = new List<Program>();
-    public virtual ICollection<Course> Courses { get; set; } = new List<Course>();
 }

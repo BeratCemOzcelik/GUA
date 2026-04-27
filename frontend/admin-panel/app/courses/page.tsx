@@ -10,7 +10,6 @@ interface Course {
   id: number
   code: string
   name: string
-  departmentName: string | null
   credits: number
   description?: string
   isActive: boolean
@@ -117,9 +116,6 @@ export default function CoursesPage() {
                     Course Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Department
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Credits
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -147,9 +143,6 @@ export default function CoursesPage() {
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {course.departmentName || <span className="text-gray-400 italic">— Cross-listed —</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {course.credits}
