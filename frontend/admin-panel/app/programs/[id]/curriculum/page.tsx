@@ -559,7 +559,10 @@ export default function CurriculumPage() {
                 label="Year Level"
                 required
                 value={String(selectedYearLevel)}
-                onChange={(e) => setSelectedYearLevel(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  setSelectedYearLevel(Number.isFinite(v) && v >= 1 ? v : 1)
+                }}
                 options={yearLevels.map((y) => ({
                   value: y,
                   label: `Year ${y}`,

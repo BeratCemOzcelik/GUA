@@ -110,6 +110,9 @@ public class ProgramCurriculumController : ControllerBase
             if (await _repo.ExistsAsync(pc => pc.ProgramId == programId && pc.CourseId == request.CourseId))
                 return BadRequest(ApiResponse<ProgramCourseDto>.FailureResult("Course already in curriculum"));
 
+            if (request.YearLevel < 1)
+                return BadRequest(ApiResponse<ProgramCourseDto>.FailureResult("Year level must be at least 1"));
+
             var entity = new ProgramCourse
             {
                 ProgramId = programId,
@@ -195,6 +198,9 @@ public class ProgramCurriculumController : ControllerBase
             var entity = await _repo.GetByIdAsync(programCourseId);
             if (entity == null || entity.ProgramId != programId)
                 return NotFound(ApiResponse<bool>.FailureResult("Curriculum entry not found"));
+
+            if (request.YearLevel < 1)
+                return BadRequest(ApiResponse<bool>.FailureResult("Year level must be at least 1"));
 
             entity.YearLevel = request.YearLevel;
             entity.IsRequired = request.IsRequired;
