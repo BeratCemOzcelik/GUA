@@ -37,6 +37,7 @@ export default function CurriculumPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('')
   const [selectedYearLevel, setSelectedYearLevel] = useState<number>(1)
   const [selectedIsRequired, setSelectedIsRequired] = useState<boolean>(true)
+  const [courseSearch, setCourseSearch] = useState('')
 
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<CurriculumCourse | null>(null)
@@ -104,9 +105,20 @@ export default function CurriculumPage() {
     setSelectedCourseId('')
     setSelectedYearLevel(1)
     setSelectedIsRequired(true)
+    setCourseSearch('')
     setActionError(null)
     setAddModalOpen(true)
   }
+
+  const filteredAvailableCourses = useMemo<CourseListItem[]>(() => {
+    const q = courseSearch.trim().toLowerCase()
+    if (!q) return availableCourses
+    return availableCourses.filter(
+      (c) =>
+        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q)
+    )
+  }, [availableCourses, courseSearch])
 
   const closeAddModal = (): void => {
     if (mutating) return
@@ -115,6 +127,10 @@ export default function CurriculumPage() {
 
   const handleAddCourse = async (): Promise<void> => {
     if (!selectedCourseId || !curriculum) return
+    if (!Number.isFinite(selectedYearLevel) || selectedYearLevel < 1) {
+      setActionError('Please select a year level')
+      return
+    }
     try {
       setMutating(true)
       setActionError(null)
@@ -540,20 +556,56 @@ export default function CurriculumPage() {
             </p>
           ) : (
             <>
-              <Select
-                label="Course"
-                required
-                value={selectedCourseId === '' ? '' : String(selectedCourseId)}
-                onChange={(e) =>
-                  setSelectedCourseId(
-                    e.target.value === '' ? '' : Number(e.target.value)
-                  )
-                }
-                options={availableCourses.map((c) => ({
-                  value: c.id,
-                  label: `${c.code} — ${c.name} (${c.credits} cr)`,
-                }))}
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Course <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={courseSearch}
+                    onChange={(e) => setCourseSearch(e.target.value)}
+                    placeholder="Search by code or name…"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#8B1A1A] focus:border-[#8B1A1A]"
+                  />
+                  <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                </div>
+                <div className="mt-2 border border-gray-200 rounded-md max-h-64 overflow-y-auto bg-white">
+                  {filteredAvailableCourses.length === 0 ? (
+                    <p className="text-sm text-gray-500 p-3">No courses match your search.</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-100">
+                      {filteredAvailableCourses.map((c) => {
+                        const isSelected = selectedCourseId === c.id
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCourseId(c.id)}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                                isSelected ? 'bg-[#8B1A1A]/5 border-l-4 border-[#8B1A1A]' : ''
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <span className="font-mono font-semibold text-gray-900">
+                                  {c.code}
+                                </span>
+                                <span className="ml-2 text-gray-700">{c.name}</span>
+                              </div>
+                              <span className="text-xs text-gray-500 ml-3 flex-shrink-0">
+                                {c.credits} cr
+                              </span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {filteredAvailableCourses.length} of {availableCourses.length} available
+                </p>
+              </div>
 
               <Select
                 label="Year Level"
@@ -600,7 +652,7 @@ export default function CurriculumPage() {
               type="button"
               onClick={handleAddCourse}
               isLoading={mutating}
-              disabled={!selectedCourseId || availableCourses.length === 0}
+              disabled={!selectedCourseId || availableCourses.length === 0 || !selectedYearLevel || selectedYearLevel < 1}
             >
               Add Course
             </Button>
