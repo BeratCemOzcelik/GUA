@@ -157,20 +157,20 @@ export default function HomePage() {
               <p className="text-lg text-gray-200 mb-8 leading-relaxed max-w-lg">
                 Join thousands of students from around the world who trust Global University America for flexible, affordable, and globally recognized education. Learn from expert faculty and gain skills to shape your future from anywhere worldwide.
               </p>
-              <div className="flex flex-wrap gap-4">
-                <Link href="/programs" className="px-8 py-3.5 bg-gold text-navy font-bold rounded-lg hover:bg-gold-light transition-all shadow-lg hover:shadow-xl">
+              <div className="flex flex-wrap gap-3">
+                <Link href="/programs" className="px-6 py-3 bg-gold text-navy font-bold rounded-lg hover:bg-gold-light transition-all shadow-lg hover:shadow-xl">
                   Explore Programs
                 </Link>
-                <Link href="/apply" className="px-8 py-3.5 bg-transparent border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all">
+                <Link href="/apply" className="px-6 py-3 bg-transparent border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all">
                   Apply Now
                 </Link>
                 <button
                   type="button"
                   onClick={() => setVideoOpen(true)}
-                  className="px-8 py-3.5 bg-white/10 border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all flex items-center gap-2"
+                  className="px-5 py-3 bg-white/10 border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all flex items-center gap-1.5"
                 >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  Watch Intro Video
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  Watch Video
                 </button>
               </div>
             </div>
