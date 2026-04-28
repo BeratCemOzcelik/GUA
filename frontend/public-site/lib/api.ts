@@ -1,7 +1,10 @@
 import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-const BACKEND_URL = API_URL.replace('/api', '')
+// Strip ONLY the trailing "/api" — a plain replace('/api', '') would match
+// the leading "api." subdomain (e.g. https://api.gua.edu.pl/api) and break
+// the URL.
+const BACKEND_URL = API_URL.replace(/\/api\/?$/, '')
 
 // Convert relative file URLs to absolute backend URLs
 export function getFileUrl(url: string | null | undefined): string {
