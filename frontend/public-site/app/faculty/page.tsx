@@ -65,7 +65,7 @@ export default function FacultyPage() {
                 href={`/faculty/${member.id}`}
                 className="bg-white rounded-xl overflow-hidden card-hover border border-gray-100"
               >
-                <div className="aspect-[4/5] bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
+                <div className="aspect-[3/4] max-h-72 bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
                   {member.photoUrl ? (
                     <img src={getFileUrl(member.photoUrl)} alt={member.title} className="w-full h-full object-cover object-top" />
                   ) : (
