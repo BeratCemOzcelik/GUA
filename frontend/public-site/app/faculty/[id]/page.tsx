@@ -67,7 +67,7 @@ export default function FacultyDetailPage() {
       <section className="pb-16 max-w-4xl mx-auto px-4 space-y-10">
         {/* Header — photo on the left, name + bio on the right */}
         <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-          <div className="w-36 h-44 flex-shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+          <div className="w-48 h-60 flex-shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
             {member.photoUrl ? (
               <img src={getFileUrl(member.photoUrl)} alt={member.title} className="w-full h-full object-cover object-top" />
             ) : (

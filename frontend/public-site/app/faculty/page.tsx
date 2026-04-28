@@ -58,31 +58,31 @@ export default function FacultyPage() {
             <p className="text-gray-500 text-sm mt-1">Check back soon!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {faculty.map((member) => (
               <Link
                 key={member.id}
                 href={`/faculty/${member.id}`}
-                className="bg-white rounded-xl overflow-hidden card-hover border border-gray-100"
+                className="bg-white rounded-lg overflow-hidden card-hover border border-gray-100"
               >
-                <div className="aspect-[3/4] max-h-72 bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
+                <div className="aspect-[3/4] bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
                   {member.photoUrl ? (
                     <img src={getFileUrl(member.photoUrl)} alt={member.title} className="w-full h-full object-cover object-top" />
                   ) : (
-                    <div className="w-24 h-24 bg-white/15 rounded-full flex items-center justify-center">
-                      <svg className="w-14 h-14 text-white/70" fill="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 bg-white/15 rounded-full flex items-center justify-center">
+                      <svg className="w-9 h-9 text-white/70" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                       </svg>
                     </div>
                   )}
                 </div>
-                <div className="p-5">
-                  <h3 className="text-lg font-bold text-gray-900">{member.title}</h3>
-                  {member.department && <p className="text-sm text-primary font-medium mt-1">{member.department}</p>}
-                  <p className="text-sm text-gray-600 line-clamp-2 mt-2">{member.bio}</p>
-                  <p className="text-sm text-primary font-semibold mt-3 flex items-center gap-1">
+                <div className="p-3.5">
+                  <h3 className="text-sm font-bold text-gray-900 line-clamp-1">{member.title}</h3>
+                  {member.department && <p className="text-xs text-primary font-medium mt-0.5 line-clamp-1">{member.department}</p>}
+                  <p className="text-xs text-gray-600 line-clamp-2 mt-1.5">{member.bio}</p>
+                  <p className="text-xs text-primary font-semibold mt-2 flex items-center gap-1">
                     View Profile
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </p>
                 </div>
               </Link>
