@@ -170,7 +170,7 @@ export default function HomePage() {
                   className="px-8 py-3.5 bg-white/10 border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  Tanıtım Videosu
+                  Watch Intro Video
                 </button>
               </div>
             </div>
@@ -494,7 +494,7 @@ export default function HomePage() {
               />
             ) : (
               <div className="bg-white rounded-lg p-10 text-center">
-                <p className="text-gray-700">Tanıtım videosu henüz yüklenmedi.</p>
+                <p className="text-gray-700">The intro video hasn&apos;t been uploaded yet.</p>
               </div>
             )}
           </div>
