@@ -65,9 +65,9 @@ export default function FacultyPage() {
                 href={`/faculty/${member.id}`}
                 className="bg-white rounded-xl overflow-hidden card-hover border border-gray-100"
               >
-                <div className="h-56 bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
+                <div className="aspect-[4/5] bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center relative">
                   {member.photoUrl ? (
-                    <img src={getFileUrl(member.photoUrl)} alt={member.title} className="w-full h-full object-cover" />
+                    <img src={getFileUrl(member.photoUrl)} alt={member.title} className="w-full h-full object-cover object-top" />
                   ) : (
                     <div className="w-24 h-24 bg-white/15 rounded-full flex items-center justify-center">
                       <svg className="w-14 h-14 text-white/70" fill="currentColor" viewBox="0 0 24 24">
