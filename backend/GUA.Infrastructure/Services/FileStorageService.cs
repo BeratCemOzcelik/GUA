@@ -20,7 +20,8 @@ public class FileStorageService : IFileStorageService
         ".doc", ".docx", // Word
         ".ppt", ".pptx", // PowerPoint
         ".xls", ".xlsx", // Excel
-        ".txt", ".md" // Text
+        ".txt", ".md", // Text
+        ".mp4", ".webm", ".mov" // Video
     };
 
     public FileStorageService(string webRootPath)

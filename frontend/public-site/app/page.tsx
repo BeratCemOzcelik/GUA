@@ -96,6 +96,8 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeTestimonial, setActiveTestimonial] = useState(0)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [videoOpen, setVideoOpen] = useState(false)
+  const INTRO_VIDEO_URL = process.env.NEXT_PUBLIC_INTRO_VIDEO_URL || ''
 
   const sliderImages = [
     '/slider/INTERNATIONAL-ACCREDITATION-CENTER-OF-THE-UNITED-STATES.png',
@@ -162,6 +164,14 @@ export default function HomePage() {
                 <Link href="/apply" className="px-8 py-3.5 bg-transparent border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all">
                   Apply Now
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setVideoOpen(true)}
+                  className="px-8 py-3.5 bg-white/10 border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-primary transition-all flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  Tanıtım Videosu
+                </button>
               </div>
             </div>
             <div className="flex justify-center animate-fade-in">
@@ -458,6 +468,38 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Intro Video Modal */}
+      {videoOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setVideoOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setVideoOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+            aria-label="Close"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            {INTRO_VIDEO_URL ? (
+              <video
+                src={INTRO_VIDEO_URL}
+                controls
+                autoPlay
+                playsInline
+                className="w-full rounded-lg shadow-2xl"
+              />
+            ) : (
+              <div className="bg-white rounded-lg p-10 text-center">
+                <p className="text-gray-700">Tanıtım videosu henüz yüklenmedi.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Footer />
       <WhatsAppWidget />
