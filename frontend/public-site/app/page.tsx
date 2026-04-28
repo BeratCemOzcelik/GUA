@@ -483,14 +483,14 @@ export default function HomePage() {
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
             {INTRO_VIDEO_URL ? (
               <video
                 src={INTRO_VIDEO_URL}
                 controls
                 autoPlay
                 playsInline
-                className="w-full rounded-lg shadow-2xl"
+                className="w-full max-h-[75vh] rounded-lg shadow-2xl"
               />
             ) : (
               <div className="bg-white rounded-lg p-10 text-center">
