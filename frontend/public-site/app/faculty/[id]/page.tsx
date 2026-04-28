@@ -77,7 +77,8 @@ export default function FacultyDetailPage() {
               )}
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{member.title}</h1>
-            {member.department && <p className="text-primary font-medium mt-1">{member.department}</p>}
+            {member.bio && <p className="text-gray-700 mt-2 leading-relaxed">{member.bio}</p>}
+            {member.department && <p className="text-primary font-medium mt-2">{member.department}</p>}
 
             {/* Social Links */}
             {(member.linkedinUrl || member.instagramUrl) && (
@@ -97,13 +98,6 @@ export default function FacultyDetailPage() {
           </div>
 
           <div className="md:col-span-2 space-y-8">
-            {member.bio && (
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-3">Biography</h2>
-                <p className="text-gray-700 leading-relaxed">{member.bio}</p>
-              </div>
-            )}
-
             {member.researchInterests && (
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-3">Research Interests</h2>
